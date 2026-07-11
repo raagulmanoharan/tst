@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <title>FLATBED S-1200</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23101214'/%3E%3Crect x='5' y='5' width='22' height='22' rx='3' fill='%2306080a' stroke='%232c3236'/%3E%3Crect x='5' y='14' width='22' height='3' fill='%2349f2a5'/%3E%3C/svg%3E">
 <style>
   :root{
     --chassis:#101214;
@@ -32,17 +33,22 @@
   #platen{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
   #hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:10px;letter-spacing:.12em;color:var(--muted);background:rgba(8,10,11,.78);border:1px solid var(--panel-edge);padding:6px 12px;border-radius:99px;pointer-events:none;white-space:nowrap;transition:opacity .5s}
   #hint.off{opacity:0}
-  footer{display:flex;align-items:center;gap:16px;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}
-  .deck{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+  footer{display:flex;align-items:flex-end;gap:14px;padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+  .deck{flex:1;display:flex;flex-direction:column;gap:9px;min-width:0}
+  .lbl{font-size:9px;letter-spacing:.18em;color:var(--muted);flex:none}
+  .fxrow{display:flex;align-items:center;gap:10px;min-width:0}
+  .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .chips::-webkit-scrollbar{display:none}
+  .chips button{flex:none;background:var(--panel);border:1px solid var(--panel-edge);border-radius:99px;color:var(--muted);font:inherit;font-size:10px;letter-spacing:.1em;padding:6px 11px;cursor:pointer}
+  .chips button.on{background:var(--lamp-dim);border-color:var(--lamp);color:var(--ink)}
+  .keys{display:flex;gap:8px}
+  .key{background:var(--panel);border:1px solid var(--panel-edge);border-radius:7px;color:var(--ink);font:inherit;font-size:11px;letter-spacing:.12em;padding:10px 12px;cursor:pointer}
+  .key:disabled{opacity:.3;cursor:default}
   .segrow{display:flex;align-items:center;gap:10px}
-  .lbl{font-size:9px;letter-spacing:.18em;color:var(--muted)}
   .seg{display:flex;border:1px solid var(--panel-edge);border-radius:7px;overflow:hidden}
-  .seg button{background:var(--panel);border:0;color:var(--muted);font:inherit;font-size:11px;letter-spacing:.08em;padding:8px 13px;cursor:pointer}
+  .seg button{background:var(--panel);border:0;color:var(--muted);font:inherit;font-size:11px;letter-spacing:.08em;padding:7px 12px;cursor:pointer}
   .seg button+button{border-left:1px solid var(--panel-edge)}
   .seg button.on{background:var(--lamp-dim);color:var(--ink)}
-  .keys{display:flex;gap:8px}
-  .key{background:var(--panel);border:1px solid var(--panel-edge);border-radius:7px;color:var(--ink);font:inherit;font-size:11px;letter-spacing:.14em;padding:10px 13px;cursor:pointer}
-  .key:disabled{opacity:.3;cursor:default}
   #scanBtn{flex:none;width:82px;height:82px;border-radius:50%;background:radial-gradient(circle at 35% 28%,#242b28,#13171a 72%);border:2px solid var(--lamp);color:var(--lamp);font:inherit;font-size:12px;font-weight:700;letter-spacing:.18em;cursor:pointer;box-shadow:0 0 16px rgba(73,242,165,.22),inset 0 2px 8px rgba(0,0,0,.65)}
   #scanBtn.busy{border-color:var(--busy);color:var(--busy);box-shadow:0 0 16px rgba(255,85,70,.28),inset 0 2px 8px rgba(0,0,0,.65)}
   #scanBtn:active{transform:scale(.96)}
@@ -60,6 +66,23 @@
   </main>
   <footer>
     <div class="deck">
+      <div class="fxrow" id="fxRow">
+        <span class="lbl">FX</span>
+        <div class="chips" id="fxChips">
+          <button data-fx="rgb">RGB</button>
+          <button data-fx="glitch">GLITCH</button>
+          <button data-fx="pix">PIX</button>
+          <button data-fx="dot">DOT</button>
+          <button data-fx="crt">CRT</button>
+          <button data-fx="twist">TWIST</button>
+        </div>
+      </div>
+      <div class="keys">
+        <button id="loadBtn" class="key">LOAD</button>
+        <button id="camBtn" class="key">CAM</button>
+        <button id="saveBtn" class="key" disabled>SAVE</button>
+        <button id="feedBtn" class="key" disabled>RE-FEED</button>
+      </div>
       <div class="segrow">
         <span class="lbl">RES</span>
         <div class="seg" id="dpiSeg">
@@ -69,51 +92,168 @@
         </div>
         <span class="lbl">DPI</span>
       </div>
-      <div class="keys">
-        <button id="loadBtn" class="key">LOAD</button>
-        <button id="saveBtn" class="key" disabled>SAVE</button>
-        <button id="feedBtn" class="key" disabled>RE-FEED</button>
-      </div>
     </div>
     <button id="scanBtn">SCAN</button>
   </footer>
 </div>
 <input type="file" id="file" accept="image/*" hidden>
 
+<script src="vendor/pixi.min.js"></script>
+<script src="vendor/pixi-filters.js"></script>
 <script>
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  const platen = $('platen'), bay = $('bay'), hint = $('hint');
+  const platen = $('platen'), hint = $('hint');
   const led = $('led'), statusText = $('statusText');
-  const scanBtn = $('scanBtn'), loadBtn = $('loadBtn'), saveBtn = $('saveBtn'), feedBtn = $('feedBtn');
+  const scanBtn = $('scanBtn'), loadBtn = $('loadBtn'), camBtn = $('camBtn');
+  const saveBtn = $('saveBtn'), feedBtn = $('feedBtn');
   const fileInput = $('file'), dpiSeg = $('dpiSeg');
+  const fxRow = $('fxRow'), fxChips = $('fxChips');
   const ctx = platen.getContext('2d');
 
   let dpr = 1, W = 0, H = 0;
-  let live, liveCtx, result, resultCtx, noisePat;
-  let source = null, sw = 0, sh = 0;
+  let result, resultCtx, noisePat;
+  let source = null, sw = 0, sh = 0, mirror = false;
   const view = { x: 0, y: 0, scale: 1, rot: 0 };
   let mode = 'idle'; // idle | scanning | done
   let scanY = 0, scanStart = 0, scanDur = 8000, prefDur = 8000;
+  let camStream = null, camFacing = 'user';
+  const bootTime = performance.now();
 
   const makeCanvas = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
 
-  function setStatus(text, state) {
-    statusText.textContent = text;
-    led.className = state === 'scanning' ? 'scanning' : '';
+  // --- render engine: PixiJS (WebGL, powers the FX rack) with a plain-2D fallback ---
+  let usePixi = false, renderer = null, stage = null, sprite = null;
+  let live2d = null, live2dCtx = null;
+  const fxOn = new Set(), fxCache = {};
+  let lastGlitch = 0;
+
+  function initPixi() {
+    if (!window.PIXI || !PIXI.filters || !PIXI.filters.GlitchFilter) return false;
+    try {
+      renderer = new PIXI.Renderer({
+        width: 32, height: 32, resolution: 1, antialias: false,
+        backgroundColor: 0x06080a, backgroundAlpha: 1, preserveDrawingBuffer: true,
+      });
+      stage = new PIXI.Container();
+      sprite = new PIXI.Sprite(PIXI.Texture.EMPTY);
+      sprite.anchor.set(0.5);
+      stage.addChild(sprite);
+      return true;
+    } catch (err) {
+      renderer = null;
+      return false;
+    }
   }
 
-  function makeNoise() {
-    const c = makeCanvas(256, 256), g = c.getContext('2d');
-    const d = g.createImageData(256, 256);
-    for (let i = 0; i < d.data.length; i += 4) {
-      const v = Math.random() * 255;
-      d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
-      d.data[i + 3] = 255;
+  const fxBuild = {
+    rgb: () => new PIXI.filters.RGBSplitFilter([-6 * dpr, 0], [0, 0], [6 * dpr, 0]),
+    glitch: () => new PIXI.filters.GlitchFilter({ slices: 10, offset: 40 * dpr, fillMode: 2 }),
+    pix: () => new PIXI.filters.PixelateFilter(Math.round(11 * dpr)),
+    dot: () => new PIXI.filters.DotFilter(0.9),
+    crt: () => new PIXI.filters.CRTFilter({
+      curvature: 1.5, lineWidth: 3 * dpr, lineContrast: 0.28,
+      noise: 0.18, noiseSize: dpr, vignetting: 0.26,
+    }),
+    twist: () => new PIXI.filters.TwistFilter({
+      angle: 3.2, radius: Math.min(W, H) * 0.48, offset: new PIXI.Point(W / 2, H / 2),
+    }),
+  };
+
+  function applyFx() {
+    const list = [...fxOn].map(k => (fxCache[k] ??= fxBuild[k]()));
+    stage.filters = list.length ? list : null;
+    stage.filterArea = renderer.screen;
+  }
+
+  function animateFx(t) {
+    const s = (t - bootTime) / 1000;
+    if (fxOn.has('rgb')) {
+      const f = fxCache.rgb;
+      // assign whole arrays: mutating .x/.y on the uniform value corrupts the upload
+      f.red = [-7 * dpr * (0.5 + 0.5 * Math.sin(s * 2.1)), 3 * dpr * Math.sin(s * 1.3)];
+      f.blue = [7 * dpr * (0.5 + 0.5 * Math.sin(s * 1.7 + 1)), 0];
     }
-    g.putImageData(d, 0, 0);
-    return c;
+    if (fxOn.has('glitch') && s - lastGlitch > 0.15) {
+      fxCache.glitch.seed = Math.random();
+      fxCache.glitch.refresh();
+      lastGlitch = s;
+    }
+    if (fxOn.has('crt')) {
+      fxCache.crt.time = s * 8;
+      fxCache.crt.seed = Math.random();
+    }
+    if (fxOn.has('twist')) fxCache.twist.angle = 3.4 * Math.sin(s * 0.7);
+  }
+
+  const liveCanvas = () => (usePixi ? renderer.view : live2d);
+
+  function drawLive(t) {
+    if (usePixi) {
+      sprite.position.set(W / 2 + view.x, H / 2 + view.y);
+      sprite.rotation = view.rot;
+      sprite.scale.set(view.scale * (mirror ? -1 : 1), view.scale);
+      animateFx(t);
+      renderer.render(stage);
+      return;
+    }
+    live2dCtx.fillStyle = '#06080a';
+    live2dCtx.fillRect(0, 0, W, H);
+    if (!source) return;
+    live2dCtx.save();
+    live2dCtx.translate(W / 2 + view.x, H / 2 + view.y);
+    live2dCtx.rotate(view.rot);
+    live2dCtx.scale(view.scale * (mirror ? -1 : 1), view.scale);
+    live2dCtx.drawImage(source, -sw / 2, -sh / 2, sw, sh);
+    live2dCtx.restore();
+  }
+
+  // --- sources: test target, uploaded photo, live camera, re-fed scan ---
+  function setSource(el, w, h, mirrored) {
+    source = el; sw = w; sh = h; mirror = !!mirrored;
+    if (usePixi) {
+      const old = sprite.texture;
+      sprite.texture = PIXI.Texture.from(el);
+      if (old && old !== PIXI.Texture.EMPTY) old.destroy(true);
+    }
+    fitSource();
+    mode = 'idle';
+    setStatus('READY');
+  }
+
+  function fitSource() {
+    view.scale = Math.min(W / sw, H / sh) * 0.92;
+    view.x = 0; view.y = 0; view.rot = 0;
+  }
+
+  function stopCam() {
+    if (camStream) {
+      camStream.getTracks().forEach(t => t.stop());
+      camStream = null;
+    }
+    camBtn.textContent = 'CAM';
+  }
+
+  async function startCam() {
+    setStatus('CAM…');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: camFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
+      });
+      stopCam();
+      camStream = stream;
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      video.playsInline = true;
+      video.muted = true;
+      await video.play();
+      setSource(video, video.videoWidth || 1280, video.videoHeight || 720, camFacing === 'user');
+      camBtn.textContent = 'FLIP';
+    } catch (err) {
+      setStatus('CAM DENIED');
+    }
   }
 
   // Calibration sheet shown before any photo is loaded, so the mechanic
@@ -145,9 +285,21 @@
     return c;
   }
 
-  function fitSource() {
-    view.scale = Math.min(W / sw, H / sh) * 0.92;
-    view.x = 0; view.y = 0; view.rot = 0;
+  function makeNoise() {
+    const c = makeCanvas(256, 256), g = c.getContext('2d');
+    const d = g.createImageData(256, 256);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const v = Math.random() * 255;
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
+      d.data[i + 3] = 255;
+    }
+    g.putImageData(d, 0, 0);
+    return c;
+  }
+
+  function setStatus(text, state) {
+    statusText.textContent = text;
+    led.className = state === 'scanning' ? 'scanning' : '';
   }
 
   function resize() {
@@ -156,7 +308,17 @@
     W = Math.max(1, Math.round(r.width * dpr));
     H = Math.max(1, Math.round(r.height * dpr));
     platen.width = W; platen.height = H;
-    live = makeCanvas(W, H); liveCtx = live.getContext('2d');
+    if (usePixi) {
+      renderer.resize(W, H);
+      if (fxCache.twist) {
+        fxCache.twist.radius = Math.min(W, H) * 0.48;
+        fxCache.twist.offset.x = W / 2;
+        fxCache.twist.offset.y = H / 2;
+      }
+    } else {
+      live2d = makeCanvas(W, H);
+      live2dCtx = live2d.getContext('2d');
+    }
     const old = result;
     result = makeCanvas(W, H); resultCtx = result.getContext('2d');
     resultCtx.fillStyle = '#06080a'; resultCtx.fillRect(0, 0, W, H);
@@ -164,18 +326,6 @@
     noisePat = resultCtx.createPattern(makeNoise(), 'repeat');
     if (mode === 'scanning') stopScan('STOPPED');
     if (source) fitSource();
-  }
-
-  function drawLive() {
-    liveCtx.fillStyle = '#06080a';
-    liveCtx.fillRect(0, 0, W, H);
-    if (!source) return;
-    liveCtx.save();
-    liveCtx.translate(W / 2 + view.x, H / 2 + view.y);
-    liveCtx.rotate(view.rot);
-    liveCtx.scale(view.scale, view.scale);
-    liveCtx.drawImage(source, -sw / 2, -sh / 2);
-    liveCtx.restore();
   }
 
   function drawLamp() {
@@ -194,7 +344,7 @@
   // with a hair of carriage wobble and CCD grain.
   function captureStrip(y0, y1) {
     const wobble = (Math.random() - 0.5) * 1.2 * dpr;
-    resultCtx.drawImage(live, 0, y0, W, y1 - y0, wobble, y0, W, y1 - y0);
+    resultCtx.drawImage(liveCanvas(), 0, y0, W, y1 - y0, wobble, y0, W, y1 - y0);
     resultCtx.save();
     resultCtx.globalAlpha = 0.055;
     resultCtx.fillStyle = noisePat;
@@ -208,11 +358,11 @@
       ctx.drawImage(result, 0, 0);
       ctx.save();
       ctx.beginPath(); ctx.rect(0, scanY, W, H - scanY); ctx.clip();
-      ctx.drawImage(live, 0, 0);
+      ctx.drawImage(liveCanvas(), 0, 0);
       ctx.restore();
       drawLamp();
     } else {
-      ctx.drawImage(live, 0, 0);
+      ctx.drawImage(liveCanvas(), 0, 0);
     }
   }
 
@@ -251,12 +401,12 @@
     if (mode === 'scanning') {
       const p = Math.min(1, (ts - scanStart) / scanDur);
       const ny = Math.round(p * H);
-      drawLive();
+      drawLive(ts);
       if (ny > scanY) { captureStrip(scanY, ny); scanY = ny; }
       setStatus('SCANNING ' + Math.round(p * 100) + '%', 'scanning');
       if (p >= 1) endScan('COMPLETE');
     } else {
-      drawLive();
+      drawLive(ts);
     }
     render();
     requestAnimationFrame(tick);
@@ -330,6 +480,15 @@
     [...dpiSeg.children].forEach(x => x.classList.toggle('on', x === b));
   });
 
+  fxChips.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    const key = b.dataset.fx;
+    if (fxOn.has(key)) fxOn.delete(key); else fxOn.add(key);
+    b.classList.toggle('on', fxOn.has(key));
+    applyFx();
+  });
+
   loadBtn.addEventListener('click', () => fileInput.click());
   fileInput.addEventListener('change', () => {
     const f = fileInput.files[0];
@@ -338,24 +497,25 @@
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      source = img; sw = img.naturalWidth; sh = img.naturalHeight;
-      fitSource();
-      mode = 'idle';
-      setStatus('READY');
+      stopCam();
+      setSource(img, img.naturalWidth, img.naturalHeight);
     };
     img.onerror = () => { URL.revokeObjectURL(url); setStatus('READ ERROR'); };
     img.src = url;
     fileInput.value = '';
   });
 
+  camBtn.addEventListener('click', () => {
+    if (camStream) camFacing = camFacing === 'user' ? 'environment' : 'user';
+    startCam();
+  });
+
   // Feed the scan back in as the new original — artifacts compound.
   feedBtn.addEventListener('click', () => {
     const snap = makeCanvas(W, H);
     snap.getContext('2d').drawImage(result, 0, 0);
-    source = snap; sw = W; sh = H;
-    fitSource();
-    mode = 'idle';
-    setStatus('READY');
+    stopCam();
+    setSource(snap, W, H);
   });
 
   saveBtn.addEventListener('click', () => {
@@ -374,11 +534,13 @@
   });
 
   // --- boot ---
+  usePixi = initPixi();
+  if (!usePixi) fxRow.style.display = 'none';
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) camBtn.disabled = true;
   window.addEventListener('resize', resize);
   resize();
   const target = makeTarget();
-  source = target; sw = target.width; sh = target.height;
-  fitSource();
+  setSource(target, target.width, target.height);
   requestAnimationFrame(tick);
 })();
 </script>

@@ -13,14 +13,23 @@ of the slit-scan mechanic, just like moving paper on a copier.
 
 ## Use it
 
-Open `index.html` in a browser — it is a single self-contained file with no
-dependencies and no build step. Best on a phone.
+Live at https://raagulmanoharan.github.io/tst/ — or open `index.html` locally
+(no build step; the PixiJS libraries are vendored in `vendor/`). Best on a
+phone.
 
-1. **LOAD** a photo (or play with the built-in calibration target).
+1. **LOAD** a photo (the native sheet offers Take Photo on mobile), or press
+   **CAM** to scan your live camera feed — press it again to flip cameras.
+   Or just play with the built-in calibration target.
 2. Position it: one finger pans, two fingers pinch-zoom and rotate.
-3. Press **SCAN** and keep moving the photo while the lamp sweeps.
-4. **SAVE** the result, or **RE-FEED** it back in as the new original and scan
+3. Toggle **FX** — RGB split, glitch slices, pixelate, halftone dots, CRT,
+   twist. They're rendered live via PixiJS + pixi-filters and stack freely,
+   so the scan head captures them baked into the output.
+4. Press **SCAN** and keep moving the photo while the lamp sweeps.
+5. **SAVE** the result, or **RE-FEED** it back in as the new original and scan
    again — artifacts compound with every pass.
+
+If WebGL is unavailable the app falls back to a plain-canvas pipeline: the
+scanner still works, only the FX rack is hidden.
 
 The **RES** setting is real: higher DPI means a slower scan head, which means
 more time to manipulate the original.
