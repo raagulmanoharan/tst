@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - claude/mobile-scanner-simulator-djjw2t
   workflow_dispatch:
 
 permissions:
