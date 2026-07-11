@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>FLATBED S-1200</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<style>
+  :root{
+    --chassis:#101214;
+    --panel:#1a1e21;
+    --panel-edge:#2c3236;
+    --glass:#06080a;
+    --ink:#e6ece7;
+    --muted:#7e8a84;
+    --lamp:#49f2a5;
+    --lamp-dim:#17493a;
+    --busy:#ff5546;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none;background:var(--chassis)}
+  body{font-family:var(--mono);color:var(--ink);-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #app{height:100dvh;max-width:640px;margin:0 auto;display:flex;flex-direction:column}
+  header{display:flex;justify-content:space-between;align-items:center;padding:12px 16px 10px}
+  .brand{font-size:13px;font-weight:700;letter-spacing:.2em}
+  .brand b{color:var(--lamp);font-weight:700}
+  .status{display:flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.16em;color:var(--muted)}
+  #led{width:8px;height:8px;border-radius:50%;background:var(--lamp);box-shadow:0 0 8px var(--lamp)}
+  #led.scanning{background:var(--busy);box-shadow:0 0 8px var(--busy);animation:blink .5s steps(2) infinite}
+  @keyframes blink{50%{opacity:.2}}
+  @media (prefers-reduced-motion: reduce){#led.scanning{animation:none}}
+  #bay{flex:1;margin:0 12px;position:relative;border:1px solid var(--panel-edge);border-radius:10px;background:var(--glass);overflow:hidden;box-shadow:inset 0 0 32px rgba(0,0,0,.75)}
+  #platen{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+  #hint{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font-size:10px;letter-spacing:.12em;color:var(--muted);background:rgba(8,10,11,.78);border:1px solid var(--panel-edge);padding:6px 12px;border-radius:99px;pointer-events:none;white-space:nowrap;transition:opacity .5s}
+  #hint.off{opacity:0}
+  footer{display:flex;align-items:center;gap:16px;padding:14px 16px calc(14px + env(safe-area-inset-bottom))}
+  .deck{flex:1;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .segrow{display:flex;align-items:center;gap:10px}
+  .lbl{font-size:9px;letter-spacing:.18em;color:var(--muted)}
+  .seg{display:flex;border:1px solid var(--panel-edge);border-radius:7px;overflow:hidden}
+  .seg button{background:var(--panel);border:0;color:var(--muted);font:inherit;font-size:11px;letter-spacing:.08em;padding:8px 13px;cursor:pointer}
+  .seg button+button{border-left:1px solid var(--panel-edge)}
+  .seg button.on{background:var(--lamp-dim);color:var(--ink)}
+  .keys{display:flex;gap:8px}
+  .key{background:var(--panel);border:1px solid var(--panel-edge);border-radius:7px;color:var(--ink);font:inherit;font-size:11px;letter-spacing:.14em;padding:10px 13px;cursor:pointer}
+  .key:disabled{opacity:.3;cursor:default}
+  #scanBtn{flex:none;width:82px;height:82px;border-radius:50%;background:radial-gradient(circle at 35% 28%,#242b28,#13171a 72%);border:2px solid var(--lamp);color:var(--lamp);font:inherit;font-size:12px;font-weight:700;letter-spacing:.18em;cursor:pointer;box-shadow:0 0 16px rgba(73,242,165,.22),inset 0 2px 8px rgba(0,0,0,.65)}
+  #scanBtn.busy{border-color:var(--busy);color:var(--busy);box-shadow:0 0 16px rgba(255,85,70,.28),inset 0 2px 8px rgba(0,0,0,.65)}
+  #scanBtn:active{transform:scale(.96)}
+  button:focus-visible{outline:2px solid var(--lamp);outline-offset:2px}
+</style>
+
+<div id="app">
+  <header>
+    <div class="brand">FLATBED <b>S-1200</b></div>
+    <div class="status"><span id="led"></span><span id="statusText">READY</span></div>
+  </header>
+  <main id="bay">
+    <canvas id="platen"></canvas>
+    <div id="hint">DRAG THE ORIGINAL WHILE IT SCANS</div>
+  </main>
+  <footer>
+    <div class="deck">
+      <div class="segrow">
+        <span class="lbl">RES</span>
+        <div class="seg" id="dpiSeg">
+          <button data-ms="4000">150</button>
+          <button data-ms="8000" class="on">300</button>
+          <button data-ms="16000">600</button>
+        </div>
+        <span class="lbl">DPI</span>
+      </div>
+      <div class="keys">
+        <button id="loadBtn" class="key">LOAD</button>
+        <button id="saveBtn" class="key" disabled>SAVE</button>
+        <button id="feedBtn" class="key" disabled>RE-FEED</button>
+      </div>
+    </div>
+    <button id="scanBtn">SCAN</button>
+  </footer>
+</div>
+<input type="file" id="file" accept="image/*" hidden>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const platen = $('platen'), bay = $('bay'), hint = $('hint');
+  const led = $('led'), statusText = $('statusText');
+  const scanBtn = $('scanBtn'), loadBtn = $('loadBtn'), saveBtn = $('saveBtn'), feedBtn = $('feedBtn');
+  const fileInput = $('file'), dpiSeg = $('dpiSeg');
+  const ctx = platen.getContext('2d');
+
+  let dpr = 1, W = 0, H = 0;
+  let live, liveCtx, result, resultCtx, noisePat;
+  let source = null, sw = 0, sh = 0;
+  const view = { x: 0, y: 0, scale: 1, rot: 0 };
+  let mode = 'idle'; // idle | scanning | done
+  let scanY = 0, scanStart = 0, scanDur = 8000, prefDur = 8000;
+
+  const makeCanvas = (w, h) => Object.assign(document.createElement('canvas'), { width: w, height: h });
+
+  function setStatus(text, state) {
+    statusText.textContent = text;
+    led.className = state === 'scanning' ? 'scanning' : '';
+  }
+
+  function makeNoise() {
+    const c = makeCanvas(256, 256), g = c.getContext('2d');
+    const d = g.createImageData(256, 256);
+    for (let i = 0; i < d.data.length; i += 4) {
+      const v = Math.random() * 255;
+      d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
+      d.data[i + 3] = 255;
+    }
+    g.putImageData(d, 0, 0);
+    return c;
+  }
+
+  // Calibration sheet shown before any photo is loaded, so the mechanic
+  // is playable immediately — grids and circles warp legibly.
+  function makeTarget() {
+    const w = 1000, h = 1400;
+    const c = makeCanvas(w, h), g = c.getContext('2d');
+    g.fillStyle = '#eef0ea'; g.fillRect(0, 0, w, h);
+    g.strokeStyle = '#c9cfc4'; g.lineWidth = 1;
+    for (let x = 0; x <= w; x += 50) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+    for (let y = 0; y <= h; y += 50) { g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    g.strokeStyle = '#1a1e21'; g.lineWidth = 6;
+    g.strokeRect(25, 25, w - 50, h - 50);
+    g.lineWidth = 3;
+    for (let r = 60; r <= 330; r += 54) { g.beginPath(); g.arc(w / 2, 620, r, 0, Math.PI * 2); g.stroke(); }
+    g.beginPath(); g.moveTo(w / 2, 240); g.lineTo(w / 2, 1000); g.moveTo(120, 620); g.lineTo(w - 120, 620); g.stroke();
+    g.lineWidth = 2;
+    g.beginPath(); g.moveTo(25, 25); g.lineTo(w - 25, h - 25); g.stroke();
+    const bars = ['#b4b4b4', '#b4b400', '#00b4b4', '#00b400', '#b400b4', '#b40000', '#0000b4'];
+    const bw = (w - 160) / bars.length;
+    bars.forEach((col, i) => { g.fillStyle = col; g.fillRect(80 + i * bw, 1070, bw, 140); });
+    g.fillStyle = '#1a1e21';
+    g.font = '700 58px ui-monospace,Menlo,monospace';
+    g.textAlign = 'center';
+    g.fillText('S-1200 TEST TARGET', w / 2, 150);
+    g.font = '400 30px ui-monospace,Menlo,monospace';
+    g.fillText('PLACE ORIGINAL FACE DOWN', w / 2, 1290);
+    g.fillText('MOVE ORIGINAL DURING SCAN', w / 2, 1340);
+    return c;
+  }
+
+  function fitSource() {
+    view.scale = Math.min(W / sw, H / sh) * 0.92;
+    view.x = 0; view.y = 0; view.rot = 0;
+  }
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const r = platen.getBoundingClientRect();
+    W = Math.max(1, Math.round(r.width * dpr));
+    H = Math.max(1, Math.round(r.height * dpr));
+    platen.width = W; platen.height = H;
+    live = makeCanvas(W, H); liveCtx = live.getContext('2d');
+    const old = result;
+    result = makeCanvas(W, H); resultCtx = result.getContext('2d');
+    resultCtx.fillStyle = '#06080a'; resultCtx.fillRect(0, 0, W, H);
+    if (old) resultCtx.drawImage(old, 0, 0, W, H);
+    noisePat = resultCtx.createPattern(makeNoise(), 'repeat');
+    if (mode === 'scanning') stopScan('STOPPED');
+    if (source) fitSource();
+  }
+
+  function drawLive() {
+    liveCtx.fillStyle = '#06080a';
+    liveCtx.fillRect(0, 0, W, H);
+    if (!source) return;
+    liveCtx.save();
+    liveCtx.translate(W / 2 + view.x, H / 2 + view.y);
+    liveCtx.rotate(view.rot);
+    liveCtx.scale(view.scale, view.scale);
+    liveCtx.drawImage(source, -sw / 2, -sh / 2);
+    liveCtx.restore();
+  }
+
+  function drawLamp() {
+    const glow = 42 * dpr;
+    const g = ctx.createLinearGradient(0, scanY - glow, 0, scanY + glow);
+    g.addColorStop(0, 'rgba(73,242,165,0)');
+    g.addColorStop(0.5, 'rgba(73,242,165,0.32)');
+    g.addColorStop(1, 'rgba(73,242,165,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, scanY - glow, W, glow * 2);
+    ctx.fillStyle = 'rgba(225,255,240,0.95)';
+    ctx.fillRect(0, scanY - dpr, W, 2 * dpr);
+  }
+
+  // The heart of the machine: commit only the strip under the lamp,
+  // with a hair of carriage wobble and CCD grain.
+  function captureStrip(y0, y1) {
+    const wobble = (Math.random() - 0.5) * 1.2 * dpr;
+    resultCtx.drawImage(live, 0, y0, W, y1 - y0, wobble, y0, W, y1 - y0);
+    resultCtx.save();
+    resultCtx.globalAlpha = 0.055;
+    resultCtx.fillStyle = noisePat;
+    resultCtx.fillRect(0, y0, W, y1 - y0);
+    resultCtx.restore();
+  }
+
+  function render() {
+    if (mode === 'done') { ctx.drawImage(result, 0, 0); return; }
+    if (mode === 'scanning') {
+      ctx.drawImage(result, 0, 0);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0, scanY, W, H - scanY); ctx.clip();
+      ctx.drawImage(live, 0, 0);
+      ctx.restore();
+      drawLamp();
+    } else {
+      ctx.drawImage(live, 0, 0);
+    }
+  }
+
+  function startScan() {
+    resultCtx.fillStyle = '#06080a'; resultCtx.fillRect(0, 0, W, H);
+    scanY = 0;
+    scanDur = prefDur;
+    scanStart = performance.now();
+    mode = 'scanning';
+    scanBtn.textContent = 'STOP';
+    scanBtn.classList.add('busy');
+    hint.classList.add('off');
+    setStatus('SCANNING 0%', 'scanning');
+  }
+
+  function endScan(label) {
+    mode = 'done';
+    scanBtn.textContent = 'SCAN';
+    scanBtn.classList.remove('busy');
+    saveBtn.disabled = false;
+    feedBtn.disabled = false;
+    setStatus(label);
+  }
+
+  function stopScan(label) {
+    if (scanY > H * 0.03) { endScan(label); }
+    else {
+      mode = 'idle';
+      scanBtn.textContent = 'SCAN';
+      scanBtn.classList.remove('busy');
+      setStatus('READY');
+    }
+  }
+
+  function tick(ts) {
+    if (mode === 'scanning') {
+      const p = Math.min(1, (ts - scanStart) / scanDur);
+      const ny = Math.round(p * H);
+      drawLive();
+      if (ny > scanY) { captureStrip(scanY, ny); scanY = ny; }
+      setStatus('SCANNING ' + Math.round(p * 100) + '%', 'scanning');
+      if (p >= 1) endScan('COMPLETE');
+    } else {
+      drawLive();
+    }
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  // --- gestures: 1 finger pans, 2 fingers pinch-zoom + rotate ---
+  const pts = new Map();
+
+  function pivotTransform(px, py, k, dAng) {
+    const vx = px - (W / 2 + view.x), vy = py - (H / 2 + view.y);
+    const cos = Math.cos(dAng), sin = Math.sin(dAng);
+    view.x += vx - k * (vx * cos - vy * sin);
+    view.y += vy - k * (vx * sin + vy * cos);
+    view.scale = Math.min(40, Math.max(0.05, view.scale * k));
+    view.rot += dAng;
+  }
+
+  platen.addEventListener('pointerdown', e => {
+    platen.setPointerCapture(e.pointerId);
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (mode === 'done') { mode = 'idle'; setStatus('READY'); }
+  });
+
+  platen.addEventListener('pointermove', e => {
+    const p = pts.get(e.pointerId);
+    if (!p) return;
+    if (pts.size === 1) {
+      view.x += (e.clientX - p.x) * dpr;
+      view.y += (e.clientY - p.y) * dpr;
+    } else {
+      const otherId = [...pts.keys()].find(id => id !== e.pointerId);
+      const o = pts.get(otherId);
+      const d0 = Math.hypot(p.x - o.x, p.y - o.y) || 1;
+      const d1 = Math.hypot(e.clientX - o.x, e.clientY - o.y) || 1;
+      const dAng = Math.atan2(e.clientY - o.y, e.clientX - o.x) - Math.atan2(p.y - o.y, p.x - o.x);
+      const rect = platen.getBoundingClientRect();
+      const m0x = ((p.x + o.x) / 2 - rect.left) * dpr, m0y = ((p.y + o.y) / 2 - rect.top) * dpr;
+      const m1x = ((e.clientX + o.x) / 2 - rect.left) * dpr, m1y = ((e.clientY + o.y) / 2 - rect.top) * dpr;
+      pivotTransform(m0x, m0y, d1 / d0, dAng);
+      view.x += m1x - m0x;
+      view.y += m1y - m0y;
+    }
+    p.x = e.clientX; p.y = e.clientY;
+  });
+
+  const release = e => pts.delete(e.pointerId);
+  platen.addEventListener('pointerup', release);
+  platen.addEventListener('pointercancel', release);
+  platen.addEventListener('contextmenu', e => e.preventDefault());
+
+  // Desktop: wheel zooms, shift+wheel rotates.
+  platen.addEventListener('wheel', e => {
+    e.preventDefault();
+    if (mode === 'done') { mode = 'idle'; setStatus('READY'); }
+    const rect = platen.getBoundingClientRect();
+    const px = (e.clientX - rect.left) * dpr, py = (e.clientY - rect.top) * dpr;
+    if (e.shiftKey) pivotTransform(px, py, 1, e.deltaY * 0.002);
+    else pivotTransform(px, py, Math.exp(-e.deltaY * 0.0015), 0);
+  }, { passive: false });
+
+  // --- controls ---
+  scanBtn.addEventListener('click', () => {
+    if (mode === 'scanning') stopScan('STOPPED');
+    else startScan();
+  });
+
+  dpiSeg.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (!b) return;
+    prefDur = +b.dataset.ms;
+    [...dpiSeg.children].forEach(x => x.classList.toggle('on', x === b));
+  });
+
+  loadBtn.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    const f = fileInput.files[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      source = img; sw = img.naturalWidth; sh = img.naturalHeight;
+      fitSource();
+      mode = 'idle';
+      setStatus('READY');
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); setStatus('READ ERROR'); };
+    img.src = url;
+    fileInput.value = '';
+  });
+
+  // Feed the scan back in as the new original — artifacts compound.
+  feedBtn.addEventListener('click', () => {
+    const snap = makeCanvas(W, H);
+    snap.getContext('2d').drawImage(result, 0, 0);
+    source = snap; sw = W; sh = H;
+    fitSource();
+    mode = 'idle';
+    setStatus('READY');
+  });
+
+  saveBtn.addEventListener('click', () => {
+    result.toBlob(async blob => {
+      if (!blob) return;
+      const file = new File([blob], 'flatbed-scan.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); return; } catch (err) { /* fall through to download */ }
+      }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'flatbed-scan.png';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    }, 'image/png');
+  });
+
+  // --- boot ---
+  window.addEventListener('resize', resize);
+  resize();
+  const target = makeTarget();
+  source = target; sw = target.width; sh = target.height;
+  fitSource();
+  requestAnimationFrame(tick);
+})();
+</script>
+</html>
