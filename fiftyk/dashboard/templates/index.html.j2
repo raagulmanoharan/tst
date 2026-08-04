@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>₹{{ '{:,.0f}'.format(goal.net_monthly_inr) }}/mo — decision engine</title>
+<style>
+  :root{--bg:#fbfaf8;--panel:#fff;--ink:#1b1b1a;--muted:#6b6a67;--line:#e4e1db;
+        --ok:#1c5d4a;--warn:#8a5a00;--bad:#96261d;
+        --ok-bg:#e8f2ee;--warn-bg:#fbf1de;--bad-bg:#fbeae8;--unk-bg:#eeeded;}
+  @media (prefers-color-scheme:dark){:root{--bg:#16171a;--panel:#1e2024;--ink:#e9e8e5;--muted:#9a9894;
+        --line:#303338;--ok:#6dc4a5;--warn:#e0aa5a;--bad:#e88178;
+        --ok-bg:#1c302a;--warn-bg:#302818;--bad-bg:#331f1d;--unk-bg:#26282c;}}
+  :root[data-theme="dark"]{--bg:#16171a;--panel:#1e2024;--ink:#e9e8e5;--muted:#9a9894;
+        --line:#303338;--ok:#6dc4a5;--warn:#e0aa5a;--bad:#e88178;
+        --ok-bg:#1c302a;--warn-bg:#302818;--bad-bg:#331f1d;--unk-bg:#26282c;}
+  :root[data-theme="light"]{--bg:#fbfaf8;--panel:#fff;--ink:#1b1b1a;--muted:#6b6a67;--line:#e4e1db;
+        --ok:#1c5d4a;--warn:#8a5a00;--bad:#96261d;
+        --ok-bg:#e8f2ee;--warn-bg:#fbf1de;--bad-bg:#fbeae8;--unk-bg:#eeeded;}
+  *{box-sizing:border-box}
+  body{margin:0;padding:2rem 1.25rem 4rem;background:var(--bg);color:var(--ink);
+       font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{max-width:62rem;margin:0 auto}
+  h1{font-size:1.5rem;margin:0 0 .2rem;letter-spacing:-.01em}
+  h2{font-size:1.05rem;margin:2rem 0 .6rem;padding-bottom:.3rem;border-bottom:1px solid var(--line)}
+  .sub{color:var(--muted);font-size:.86rem;margin-bottom:1.5rem}
+  .bar{height:10px;background:var(--unk-bg);border-radius:99px;overflow:hidden;margin:.5rem 0 .3rem}
+  .bar>i{display:block;height:100%;background:var(--ok);border-radius:99px}
+  .headline{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;margin-bottom:1.5rem}
+  .headline .big{font-size:1.7rem;font-weight:600;font-variant-numeric:tabular-nums}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:.9rem 1.05rem;margin-bottom:.7rem}
+  .card h3{font-size:1rem;margin:0 0 .1rem}
+  .meta{color:var(--muted);font-size:.78rem;margin-bottom:.5rem}
+  .pill{display:inline-block;font-size:.73rem;padding:.15rem .5rem;border-radius:99px;
+        background:var(--unk-bg);border:1px solid var(--line);margin:0 .25rem .25rem 0;white-space:nowrap}
+  .pill.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+  .pill.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+  .pill.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+  .block{background:var(--bad-bg);color:var(--bad);border-radius:6px;padding:.4rem .6rem;font-size:.83rem;margin:.3rem 0}
+  .block .sum{display:block;font-variant-numeric:tabular-nums;opacity:.85;margin-top:.15rem}
+  .gap{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:.4rem .6rem;font-size:.83rem;margin:.3rem 0}
+  ul{margin:.35rem 0;padding-left:1.15rem;font-size:.86rem}
+  li{margin-bottom:.1rem}
+  details{margin-top:.45rem}
+  summary{cursor:pointer;font-size:.8rem;color:var(--muted);user-select:none;padding:.15rem 0}
+  .tablewrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;font-size:.79rem;margin-top:.4rem}
+  th,td{text-align:left;padding:.3rem .5rem;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:500}
+  code{font:.78rem ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+  a{color:var(--ok)}
+  .note{color:var(--muted);font-size:.84rem;margin:.4rem 0 1rem}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>₹{{ '{:,.0f}'.format(goal.net_monthly_inr) }}/month, net</h1>
+<div class="sub">{{ generated_at }} · {{ horizon }}-month horizon · ₹{{ '{:,.0f}'.format(capital) }} capital ·
+  hands-off ceiling {{ '{:.0f}'.format(max_hours) }} h/week</div>
+
+<div class="headline">
+  <div class="big">₹{{ '{:,.0f}'.format(current_net) }} <span style="font-size:.9rem;color:var(--muted)">of ₹{{ '{:,.0f}'.format(goal.net_monthly_inr) }} — {{ '{:.0f}'.format(progress_pct) }}%</span></div>
+  <div class="bar"><i style="width:{{ progress_pct }}%"></i></div>
+  <div class="meta">{{ viable_count }} viable · {{ evidence_count }} awaiting evidence · {{ blocked_count }} ruled out</div>
+</div>
+
+{% if not viable %}
+<div class="block">
+  Nothing currently clears every constraint. That is a result, not an error — see
+  <strong>what to relax</strong> below for which single constraint buys the most.
+</div>
+{% endif %}
+
+{% if viable %}
+<h2>Worth pursuing</h2>
+<div class="note">Ranked by attention price — build hours per rupee of durable monthly income. With capital fixed near zero, hours are the only currency being spent.</div>
+{% for item in viable %}
+<div class="card">
+  <h3>{{ item.opp.name }}</h3>
+  <div class="meta">{{ item.opp.category }} · demand via {{ item.opp.demand_mechanism.value.replace('_',' ') }} · <code>{{ item.opp.key }}</code></div>
+  <span class="pill {{ 'ok' if item.verdict == 'viable' else 'warn' }}">{{ item.verdict }}</span>
+  {% if item.months %}<span class="pill">~{{ '{:.0f}'.format(item.months) }} months to goal</span>{% endif %}
+  {% if item.listings %}<span class="pill">{{ '{:,.0f}'.format(item.listings) }} {{ item.opp.economics.listing_name }}s needed</span>{% endif %}
+  {% if item.maintenance is not none %}<span class="pill {{ 'ok' if item.hands_off else 'bad' }}">{{ '{:.1f}'.format(item.maintenance) }} h/wk forever</span>{% endif %}
+  {% for w in item.warnings %}<div class="gap">{{ w.reason }}{% if w.arithmetic %}<span class="sum">{{ w.arithmetic }}</span>{% endif %}</div>{% endfor %}
+  {% if item.opp.fit_notes %}<ul>{% for n in item.opp.fit_notes %}<li>{{ n }}</li>{% endfor %}</ul>{% endif %}
+</div>
+{% endfor %}
+{% endif %}
+
+{% if relaxations %}
+<h2>What to relax</h2>
+<div class="note">One constraint at a time, so you can see which sacrifice actually buys the result.</div>
+{% for r in relaxations %}
+<div class="card">
+  <h3>{{ r.label }}</h3>
+  <div class="meta">{{ r.description }}</div>
+  <span class="pill ok">opens {{ r.newly_viable_count }}</span>
+  {% for k in r.opportunities_opened %}<span class="pill">{{ k }}</span>{% endfor %}
+  <div class="gap">Cost: {{ r.cost_to_operator }}</div>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if pending %}
+<h2>Awaiting evidence</h2>
+<div class="note">Not judged yet. Two different problems: figures nobody publishes, and estimates only you can make.</div>
+{% for item in pending %}
+<div class="card">
+  <h3>{{ item.opp.name }}</h3>
+  <div class="meta">{{ item.opp.category }} · <code>{{ item.opp.key }}</code></div>
+  {% for w in item.warnings %}<div class="gap">{{ w.reason }}</div>{% endfor %}
+  <details><summary>Evidence held ({{ item.observations|length }})</summary>
+    <div class="tablewrap"><table>
+      <tr><th>field</th><th>value</th><th>basis</th><th>confidence</th><th>source</th></tr>
+      {% for name, o in item.observations %}
+      <tr><td><code>{{ name.replace('economics.','') }}</code></td>
+        <td>{% if o.value is not none %}{{ '{:,.2f}'.format(o.value) }}{% else %}—{% endif %}</td>
+        <td>{{ o.basis.value }}</td><td>{{ o.confidence.value }}</td>
+        <td>{% if o.evidence_url %}<a href="{{ o.evidence_url }}" target="_blank" rel="noopener">{{ o.source.value }}</a>{% else %}{{ o.source.value }}{% endif %}</td></tr>
+      {% endfor %}
+    </table></div>
+  </details>
+</div>
+{% endfor %}
+{% endif %}
+
+{% if blocked %}
+<h2>Ruled out</h2>
+<div class="note">Kept with their reasons. Deleting them just means rediscovering them in six months.</div>
+{% for item in blocked %}
+<div class="card">
+  <h3>{{ item.opp.name }}</h3>
+  <div class="meta">{{ item.opp.category }} · <code>{{ item.opp.key }}</code></div>
+  {% for b in item.blockers %}
+  <div class="block">{{ b.reason }}{% if b.arithmetic %}<span class="sum">{{ b.arithmetic }}</span>{% endif %}</div>
+  {% endfor %}
+</div>
+{% endfor %}
+{% endif %}
+
+</div></body>
+</html>
