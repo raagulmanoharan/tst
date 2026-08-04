@@ -1,80 +1,69 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from leadgen.store.models import (
-    AdsEvidence,
-    Confidence,
-    Observation,
-    SearchEvidence,
-    SiteEvidence,
-    Source,
-)
-
-GOLDEN = Path(__file__).parent / "golden"
-
-HEALTHY_SITE = dict(
-    reachable=True, http_status=200, load_seconds=0.8, https_valid=True,
-    mobile_viewport=True, has_contact_path=True, copyright_year=2026,
-    parked_or_expired=False, title_length=44,
-)
-
-#: A site that failed to load: reachability is known, everything else is not.
-DOWN_SITE = dict(
-    reachable=False, http_status=None, load_seconds=None, https_valid=None,
-    mobile_viewport=None, has_contact_path=None, copyright_year=None,
-    parked_or_expired=None, title_length=None,
-)
+from fiftyk.goal import DemandMechanism
+from fiftyk.models import Economics, Opportunity
+from fiftyk.provenance import Confidence, Observation, SampleBasis, Source
+from fiftyk.store import Store
 
 
-def observed(value):
-    return Observation(
-        value=value,
-        source=Source.BUSINESS_SITE,
-        method="fixture observation",
+def fig(value: float, basis: SampleBasis = SampleBasis.MEDIAN) -> Observation[float]:
+    return Observation[float](
+        value=float(value),
+        source=Source.INDUSTRY_REPORT,
+        method="test fixture figure",
         confidence=Confidence.VERIFIED,
+        basis=basis,
         evidence_url="https://fixture.test",
     )
 
 
-def unknown():
-    return Observation.unverified(Source.BUSINESS_SITE, "fixture check established nothing")
+def gap(note: str = "not established in fixtures") -> Observation[float]:
+    return Observation[float].unverified(Source.INDUSTRY_REPORT, "test fixture gap", note=note)
 
 
-def make_site(**overrides) -> SiteEvidence:
-    fields = {**HEALTHY_SITE, **overrides}
-    return SiteEvidence(**{k: (unknown() if v is None else observed(v)) for k, v in fields.items()})
+def economics(**overrides) -> Economics:
+    """A fully-known, deliberately benign set of economics.
 
-
-def make_ads(google: bool | None = None, meta: bool | None = None) -> AdsEvidence:
-    def field(value, source: Source):
-        if value is None:
-            return Observation.unverified(source, "not checked", evidence_url="https://check.test")
-        return Observation(
-            value=value, source=Source.OPERATOR, method="operator checked by hand",
-            confidence=Confidence.VERIFIED, evidence_url="https://check.test",
-        )
-
-    return AdsEvidence(
-        google_ads_active=field(google, Source.GOOGLE_ADS_TRANSPARENCY),
-        meta_ads_active=field(meta, Source.META_AD_LIBRARY),
+    Defaults: ₹250 net per sale, 2 sales per listing per month, 10 hours to
+    build one, no decay. At 25 h/week that reaches ₹50,000/mo in ~10 months.
+    """
+    base = dict(
+        capital_required_inr=0.0,
+        median_seller_net_monthly_inr=20_000.0,
+        net_per_unit_inr=250.0,
+        units_per_listing_per_month=2.0,
+        build_hours_per_listing=10.0,
+        months_to_first_revenue=1.0,
+        annual_decay=0.0,
+        fixed_upkeep_hours_per_week=0.0,
+    )
+    base.update(overrides)
+    return Economics(
+        unit_name="sale",
+        listing_name="asset",
+        **{k: (gap() if v is None else fig(v)) for k, v in base.items()},
     )
 
 
-def make_search(ranks: bool | None = None, domain: bool | None = None) -> SearchEvidence:
-    def field(value):
-        if value is None:
-            return Observation.unverified(Source.WEB_SEARCH, "not checked", evidence_url="https://check.test")
-        return Observation(
-            value=value, source=Source.OPERATOR, method="operator searched by hand",
-            confidence=Confidence.VERIFIED, evidence_url="https://check.test",
-        )
-
-    return SearchEvidence(ranks_for_own_name=field(ranks), independent_domain_found=field(domain))
+def opportunity(
+    key: str = "test_opp",
+    mechanism: DemandMechanism = DemandMechanism.MARKETPLACE_SEARCH,
+    **econ,
+) -> Opportunity:
+    return Opportunity(
+        key=key,
+        name=f"Test {key}",
+        category="test",
+        summary="fixture",
+        demand_mechanism=mechanism,
+        economics=economics(**econ),
+    )
 
 
 @pytest.fixture
-def golden_dir() -> Path:
-    return GOLDEN
+def store(tmp_path):
+    s = Store(tmp_path / "test.db")
+    yield s
+    s.close()

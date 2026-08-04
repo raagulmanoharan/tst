@@ -1,187 +1,200 @@
-"""End-to-end pipeline, store and validation harness.
-
-Uses a stub Places client so nothing here touches the network or spends API
-quota.
-"""
+"""Provenance enforcement, the store, sensitivity and the model-vs-actual loop."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import httpx
 import pytest
+from pydantic import ValidationError
 
-from leadgen.config import CITIES, Operator
-from leadgen.dashboard import build_dashboard
-from leadgen.discover.places import DiscoveredPlace, EphemeralPlace
-from leadgen.pipeline import detect_contradictions, run_draft, run_verify, score_only
-from leadgen.store import LeadStore
-from leadgen.store.models import Confidence, Lead, Observation, Source, Stage
-from leadgen.validate import validate
+from fiftyk.catalogue import seed
+from fiftyk.dashboard import build_dashboard
+from fiftyk.economics import net_monthly_at
+from fiftyk.goal import Constraints, DemandMechanism, Exclusion, Goal, Profile
+from fiftyk.models import DipCheck, MonthlyActual, Stage
+from fiftyk.provenance import Confidence, Observation, SampleBasis, Source
+from fiftyk.research import brief
+from fiftyk.sensitivity import analyse
+from fiftyk.validate import validate
 
-from .conftest import make_ads, make_site
+from .conftest import economics, opportunity
 
-OPERATOR = Operator(
-    name="Test Person", site="testperson.test", email="hi@testperson.test", city="Bangalore"
-)
-
-
-class StubPlacesClient:
-    """Stands in for PlacesClient without a key, a network or a bill."""
-
-    def __init__(self, places: dict[str, EphemeralPlace]) -> None:
-        self.places = places
-        self.calls = 0
-
-    def discover(self, city, probe, **kwargs):
-        for place_id in self.places:
-            yield DiscoveredPlace(place_id=place_id, lat=12.97, lng=77.59)
-
-    def fetch_live(self, place_id: str) -> EphemeralPlace:
-        self.calls += 1
-        return self.places[place_id]
+PROFILE = Profile.default()
 
 
-@pytest.fixture
-def store(tmp_path: Path) -> LeadStore:
-    s = LeadStore(tmp_path / "test.db")
-    yield s
-    s.close()
+# -- provenance ---------------------------------------------------------
 
 
-def seed(store: LeadStore, place_id: str, category: str = "dental") -> Lead:
-    lead = Lead(place_id=place_id, city="Bangalore", category_probe=category)
-    store.upsert(lead)
-    return lead
+def test_a_figure_without_a_source_is_rejected():
+    with pytest.raises(ValidationError, match="evidence_url"):
+        Observation[float](
+            value=100.0, source=Source.INDUSTRY_REPORT, method="a claim",
+            confidence=Confidence.VERIFIED,
+        )
 
 
-def test_store_roundtrips_a_lead_with_evidence(store):
-    lead = seed(store, "place001")
-    lead.site = make_site(mobile_viewport=False)
-    lead.ads = make_ads(google=True)
-    store.upsert(lead)
+def test_unverified_may_not_carry_a_value():
+    with pytest.raises(ValidationError, match="must not carry a value"):
+        Observation[float](
+            value=100.0, source=Source.INDUSTRY_REPORT, method="a guess",
+            confidence=Confidence.UNVERIFIED,
+        )
 
-    loaded = store.get("place001")
+
+@pytest.mark.parametrize("basis", [SampleBasis.TOP_DECILE, SampleBasis.ANECDOTE, SampleBasis.MEAN])
+def test_winner_and_average_figures_are_not_planning_grade(basis):
+    obs = Observation[float](
+        value=10_000.0, source=Source.SELLER_REPORT, method="someone's blog post",
+        confidence=Confidence.VERIFIED, basis=basis, evidence_url="https://x.test",
+    )
+    assert obs.is_known
+    assert not obs.is_planning_grade
+
+
+def test_median_and_aggregate_are_planning_grade():
+    for basis in (SampleBasis.MEDIAN, SampleBasis.AGGREGATE):
+        obs = Observation[float](
+            value=100.0, source=Source.PLATFORM_DATA, method="platform disclosure",
+            confidence=Confidence.VERIFIED, basis=basis, evidence_url="https://x.test",
+        )
+        assert obs.is_planning_grade
+
+
+# -- store --------------------------------------------------------------
+
+
+def test_store_roundtrips_with_evidence_intact(store):
+    opp = opportunity()
+    store.upsert(opp)
+    loaded = store.get(opp.key)
     assert loaded is not None
-    assert loaded.site.mobile_viewport.value is False
-    assert loaded.ads.google_ads_active.value is True
-    assert loaded.site.mobile_viewport.evidence_url
+    assert loaded.economics.net_per_unit_inr.value == 250.0
+    assert loaded.economics.net_per_unit_inr.evidence_url
 
 
-def test_verify_scores_and_routes_leads(store, monkeypatch):
-    seed(store, "place001")  # broken site, running ads, well reviewed -> qualified
-    seed(store, "place002")  # healthy site -> rejected
-
-    client = StubPlacesClient({
-        "place001": EphemeralPlace("place001", display_name="Broken Co", website_uri="https://broken.test", rating=4.6, user_rating_count=90),
-        "place002": EphemeralPlace("place002", display_name="Healthy Co", website_uri="https://healthy.test", rating=4.6, user_rating_count=90),
-    })
-
-    def fake_check_site(url, http_client=None):
-        return make_site(reachable=False) if "broken" in (url or "") else make_site()
-
-    monkeypatch.setattr("leadgen.pipeline.check_site", fake_check_site)
-
-    result = run_verify(store, client)
-    assert result["verified"] == 2
-    assert result["qualified"] == 1
-    assert result["rejected"] == 1
-    assert store.get("place001").stage is Stage.QUALIFIED
-    assert store.get("place002").stage is Stage.REJECTED
-    assert client.calls == 2, "one live lookup per lead, not more"
+def test_verdict_history_is_appended_not_overwritten(store):
+    store.log_verdict("k", "needs_evidence", "first look")
+    store.log_verdict("k", "blocked", "median found, far too low")
+    history = store.verdict_history("k")
+    assert [h["verdict"] for h in history] == ["needs_evidence", "blocked"]
 
 
-def test_draft_only_touches_qualified_leads(store, monkeypatch):
-    lead = seed(store, "place001")
-    lead.site = make_site(mobile_viewport=False)
-    lead.ads = make_ads(google=True)
-    lead.stage = Stage.QUALIFIED
-    store.upsert(lead)
-
-    client = StubPlacesClient({
-        "place001": EphemeralPlace("place001", display_name="Aster", website_uri="https://a.test", rating=4.5, user_rating_count=60)
-    })
-    result = run_draft(store, OPERATOR, client)
-
-    assert result["drafted"] == 1
-    updated = store.get("place001")
-    assert updated.stage is Stage.DRAFTED
-    assert {r.channel for r in updated.outreach} == {"email", "walkin"}
-    assert all(not r.approved_by_operator for r in updated.outreach)
+def test_total_net_sums_the_latest_month_of_live_ventures(store):
+    for key, net in (("a", 3000.0), ("b", 2000.0)):
+        opp = opportunity(key=key)
+        opp.stage = Stage.LIVE
+        opp.actuals = [
+            MonthlyActual(month="2026-08", net_inr=1.0, hours_spent=1, listings_live=1),
+            MonthlyActual(month="2026-09", net_inr=net, hours_spent=1, listings_live=1),
+        ]
+        store.upsert(opp)
+    assert store.total_net_monthly() == 5000.0
 
 
-def test_rescore_leaves_in_conversation_leads_alone(store):
-    lead = seed(store, "place001")
-    lead.site = make_site()
-    lead.stage = Stage.REPLIED
-    store.upsert(lead)
-
-    score_only(store)
-    assert store.get("place001").stage is Stage.REPLIED
+# -- model vs actual ----------------------------------------------------
 
 
-def test_contradictions_are_flagged_not_resolved():
-    lead = Lead(place_id="place001", city="Bangalore", category_probe="dental")
-    lead.site = make_site(reachable=True, http_status=503)
-    found = detect_contradictions(lead)
-    assert found and "503" in found[0]
+def test_model_and_reality_can_be_compared_directly():
+    """The correction signal: when reality disagrees, the model is wrong."""
+    econ = economics()
+    assert net_monthly_at(econ, 10) == pytest.approx(5000)
+    actual = 1200.0
+    assert actual / net_monthly_at(econ, 10) == pytest.approx(0.24)
 
 
-def test_validate_passes_on_well_formed_data(store):
-    lead = seed(store, "place001")
-    lead.site = make_site()
-    lead.ads = make_ads(google=True)
-    store.upsert(lead)
+# -- dip checks ---------------------------------------------------------
 
+
+def test_dip_check_requires_kill_criteria_up_front():
+    with pytest.raises(ValidationError):
+        DipCheck(tests_assumption="x", method="try it", time_box_hours=8, kill_criteria=[])
+
+
+def test_riskiest_assumption_prefers_the_fatal_one():
+    from fiftyk.models import Assumption
+
+    opp = opportunity()
+    opp.assumptions = [
+        Assumption(claim="minor", why_it_matters="a little"),
+        Assumption(claim="fatal", why_it_matters="a lot", fatal_if_false=True),
+    ]
+    assert opp.riskiest_open_assumption.claim == "fatal"
+
+
+# -- sensitivity --------------------------------------------------------
+
+
+def test_relaxing_the_demand_rule_opens_outbound_routes():
+    blocked = opportunity(key="outbound", mechanism=DemandMechanism.OUTBOUND_SALES)
+    results = analyse([blocked], PROFILE.goal, PROFILE.constraints)
+    demand = next(r for r in results if "chasing demand" in r.label)
+    assert "outbound" in demand.opportunities_opened
+
+
+def test_relaxing_the_hours_ceiling_opens_treadmill_routes():
+    treadmill = opportunity(key="treadmill", annual_decay=0.30)
+    results = analyse([treadmill], PROFILE.goal, PROFILE.constraints)
+    hours = next(r for r in results if "h/week at maturity" in r.label)
+    assert "treadmill" in hours.opportunities_opened
+
+
+def test_sensitivity_reports_nothing_when_a_block_is_structural():
+    """A zero median is not a constraint problem — no relaxation fixes it."""
+    dead = opportunity(key="dead", median_seller_net_monthly_inr=0.0)
+    results = analyse([dead], PROFILE.goal, PROFILE.constraints)
+    assert all(not r.is_worthwhile for r in results)
+
+
+# -- research briefs ----------------------------------------------------
+
+
+def test_brief_skips_blocked_opportunities():
+    """No point researching something the block is structural on."""
+    blocked = opportunity(key="blocked_one", mechanism=DemandMechanism.OUTBOUND_SALES,
+                          units_per_listing_per_month=None)
+    open_one = opportunity(key="open_one", units_per_listing_per_month=None)
+    items = brief([blocked, open_one], PROFILE.goal, PROFILE.constraints)
+    assert {i.opportunity_key for i in items} == {"open_one"}
+
+
+def test_median_is_the_highest_priority_question():
+    opp = opportunity(median_seller_net_monthly_inr=None, units_per_listing_per_month=None)
+    items = brief([opp], PROFILE.goal, PROFILE.constraints)
+    top = [i for i in items if i.priority == 1]
+    assert any(i.field == "median_seller_net_monthly_inr" for i in top)
+
+
+# -- validation and rendering -------------------------------------------
+
+
+def test_the_seeded_catalogue_passes_validation(store):
+    for opp in seed():
+        store.upsert(opp)
     report = validate(store)
-    assert report.ok
-    assert report.leads_checked == 1
-    assert report.observations_checked > 0
+    assert report.ok, [f.detail for f in report.findings if f.kind == "missing_provenance"]
+    assert report.checked == len(seed())
 
 
-def test_validate_counts_unverified_without_failing(store):
-    """Unverified fields are expected, not errors — they need a human, not a fix."""
-    lead = seed(store, "place001")
-    lead.site = make_site()
-    lead.ads = make_ads()  # both unchecked
-    store.upsert(lead)
-
+def test_validation_flags_figures_that_are_not_planning_grade(store):
+    for opp in seed():
+        store.upsert(opp)
     report = validate(store)
-    assert report.ok
-    assert report.unverified_by_field.get("ads.google_ads_active") == 1
+    assert report.unsafe_basis, "the catalogue contains a mean and an anecdote; both should be flagged"
 
 
-def test_budget_tracking_accumulates(store):
-    store.record_api_call("text_search_pro", 5)
-    store.record_api_call("text_search_pro", 3)
-    assert store.usage_this_month()["text_search_pro"] == 8
-
-
-def test_dashboard_renders_without_leaking_stored_google_content(store, tmp_path):
-    lead = seed(store, "place001")
-    lead.site = make_site(mobile_viewport=False)
-    lead.ads = make_ads()
-    lead.stage = Stage.QUALIFIED
-    from leadgen.score import score_lead
-    lead.score = score_lead(lead, None)
-    store.upsert(lead)
-
-    out = build_dashboard(store, tmp_path / "index.html")
+def test_dashboard_renders_the_blocked_arithmetic(store, tmp_path):
+    for opp in seed():
+        store.upsert(opp)
+    out = build_dashboard(store, PROFILE, tmp_path / "index.html")
     html = out.read_text()
-
-    assert "place001" in html
-    assert "maps/place/?q=place_id:place001" in html
-    # Manual-check links must survive into the page for the operator to click.
-    assert "check.test" in html
+    assert "Ruled out" in html
+    assert "What to relax" in html
+    assert "chrome_extension" in html
 
 
-def test_city_grid_covers_the_bounding_box():
-    grid = CITIES["bangalore"].grid(step_km=8.0)
-    assert len(grid) > 4
-    lats = [lat for lat, _ in grid]
-    assert min(lats) >= CITIES["bangalore"].lat_min
-    assert max(lats) <= CITIES["bangalore"].lat_max
+def test_goal_and_constraints_drive_everything():
+    """Change the profile, change every verdict — the intended behaviour."""
+    from fiftyk.feasibility import Verdict, assess
 
-
-def test_only_bangalore_is_active_in_phase_one():
-    assert [k for k, c in CITIES.items() if c.active] == ["bangalore"]
+    opp = opportunity(median_seller_net_monthly_inr=6_000.0)
+    assert assess(opp, Goal(), Constraints()).verdict is Verdict.BLOCKED
+    modest = Goal(net_monthly_inr=20_000.0)
+    assert assess(opp, modest, Constraints()).verdict is not Verdict.BLOCKED

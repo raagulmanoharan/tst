@@ -1,121 +1,152 @@
-# leadgen
+# fiftyk
 
-A lead-qualification pipeline for a solo freelance web developer in Bangalore.
+A decision engine for reaching **₹50,000/month net**, from under ₹1 lakh of
+capital, without chasing demand.
 
-It finds local businesses whose weak online presence is measurably costing them
-customers, verifies that claim with evidence, scores it, and drafts outreach for
-you to review and send by hand.
-
-It does **not** send anything, and it does not target businesses simply for
-lacking a website.
+It models opportunities as economics rather than ideas, eliminates what cannot
+work and shows the arithmetic, runs structured due diligence on what might, and
+tracks what is actually deployed against the goal.
 
 ---
 
-## Why it works this way
+## The first thing it tells you
 
-Three research findings shaped the design, and all three cut against the obvious
-approach.
+Under the real constraints — ₹1 lakh capital, no promotion, no audience, no
+teaching, hands-off within 5 h/week — **nothing in the researched catalogue
+clears every gate.**
 
-**"Has no website" is a dead filter.** Practitioners have said so since 2016 and
-have inverted it: a business with a *bad* site has already proved it will pay for
-one; a business with *none* has usually been pitched fifty times and said no.
-Owners report 5–10 identical pitches a day. Google Business Profile, Instagram,
-Justdial's free site builder and WhatsApp Business AI already cover what most
-small retail wanted a website for. So the scorer treats "no website" as a weak
-starting signal that **cannot qualify a lead on its own**, and qualifies instead
-on a compound of observed defects, proven willingness to spend, and signs of an
-active business.
+That is the product, not a bug. The useful output is *why*, and *which single
+constraint buys the most if you give it up*:
 
-**Storing Google Maps data is prohibited.** Maps Platform ToS §3.2.3(a)(iii)
-forbids copying and saving business names, addresses and reviews; §14.3 permits
-caching latitude and longitude *only* — there is no general 30-day cache right.
-So this stores `place_id` (explicitly exempt) plus its own observations, and
-re-fetches everything else live. India's Places price list gives 35,000 free Pro
-and 7,000 free Enterprise calls a month, so a few hundred leads costs nothing.
+```
+$ python -m fiftyk status
+Goal  ₹50,000/month net within 24 months
+Now   ₹0/month  (0%)
 
-**Manual beats automated by roughly 100x.** One operator closed 3 clients from
-120 hand-researched emails (2.5%); the same team's automated setup closed 2 from
-10,000 (0.02%). This is therefore a qualification engine, not a sending tool. It
-is designed to hand you a short list worth eight careful emails a day.
+Nothing clears every constraint.
+That is a result, not a failure — run `python -m fiftyk relax` to see
+which single constraint opens the most if you give it up.
 
-## Quick start
+8 awaiting evidence, 6 ruled out.
+```
+
+## Why capital-yield routes are closed
+
+₹1 lakh at 8% yields ₹667/month against a ₹50,000 target.
+
+| Route | Capital needed | Verdict |
+|---|---|---|
+| FD / debt funds @ 7.5% | ~₹80 lakh | closed — 80x over |
+| Commercial property @ 7% | ~₹86 lakh | closed |
+| Bangalore residential @ 3.5% | ~₹1.7 crore | closed |
+| Cloud kitchen | ₹10–25 lakh, and it is a job | closed |
+
+The only open space is sweat equity: build once, sell many times. The binding
+constraint is not money — it is your attention. So the engine ranks by
+**attention price**: build hours per rupee of durable monthly income.
+
+## What the research found
+
+Every figure in the catalogue is sourced or marked `UNVERIFIED`. Nothing is
+estimated to fill a gap.
+
+- **Median outcomes are near zero.** Gumroad's median creator earns **$72/month**;
+  44% of products earn exactly $0; the top 1% take 99.5% of revenue. Envato:
+  ~1,500 of 81,000+ authors "earn a living". Steam's median 2025 release netted
+  about **$74 lifetime**, and ~40% did not recoup the $100 listing fee.
+- **Platforms stopped rewarding organic discovery.** Amazon Merch's June 2026
+  tiers pay roughly **double** to sellers bringing external traffic. Google's AI
+  Overviews cut result clicks from 15% to 8%. Shutterstock's revenue fell 18% YoY
+  with downloads down 14%. The no-promotion constraint is precisely the behaviour
+  these platforms de-monetised.
+- **Some categories are structurally closed**: Chrome extensions (in-store
+  payments ended in 2021; the median extension has 17 installs), Obsidian/Blender
+  plugins (no paid path), Figma Community (India is not a supported payout
+  country).
+
+## The decay model
+
+The one piece of maths worth understanding. A portfolio built at `B` listings a
+year, decaying at fraction `d` a year, follows `dP/dt = B − d·P` and settles at
+an equilibrium of **`B/d`**.
+
+If the portfolio you need is larger than that equilibrium, the goal is not slow —
+it is **unreachable at any time horizon**, however long you work. Division hides
+this completely.
+
+The same maths gives the honest answer on passivity: holding a portfolio at goal
+size means replacing what decays, forever. At 30% annual decay on a 100-listing
+portfolio at 10 hours each, that is **5.8 h/week for life** — a job, not passive
+income.
+
+## Usage
 
 ```bash
 pip install -e ".[dev]"
-cp .env.example .env      # then fill it in
 
-python -m leadgen categories                              # what gets searched, and why
-python -m leadgen discover --city bangalore --max-centres 2   # cheap trial sweep
-python -m leadgen verify --limit 25                       # visit sites, collect evidence, score
-python -m leadgen draft                                   # draft outreach (never sends)
-python -m leadgen dashboard --live && open out/index.html
-python -m leadgen validate                                # audit provenance and staleness
+python -m fiftyk seed                    # load the researched catalogue
+python -m fiftyk status                  # what to do next
+python -m fiftyk relax                   # which constraint to give up
+python -m fiftyk show unity_asset_store  # one opportunity in full
+python -m fiftyk research                # what to find out next, by decision value
+python -m fiftyk dashboard && open out/index.html
+python -m fiftyk validate                # audit provenance
 ```
 
-## Commands
+Recording what you learn:
 
-| Command | What it does |
-|---|---|
-| `discover` | Sweeps a city grid per category. Stores `place_id`s and nothing else. |
-| `verify` | One live lookup per lead, visits their site, records evidence, scores. |
-| `score` | Re-scores from stored evidence with no network calls. |
-| `draft` | Writes email and walk-in drafts for qualified leads. Never sends. |
-| `dashboard` | Renders the tracker to a single HTML file. |
-| `validate` | Audits every stored fact for provenance and staleness. |
-| `budget` | API usage against the free tier. |
-| `ads` / `search` | Records a manual check you did by hand. |
+```bash
+# your own estimates — nobody publishes how fast you work
+python -m fiftyk estimate unity_asset_store --build-hours 12 --upkeep-hours 2
 
-## The two invariants
+# a researched figure, with provenance the schema will enforce
+python -m fiftyk record unity_asset_store --field median_seller_net_monthly_inr \
+    --value 4200 --basis median --source platform_data \
+    --url https://... --method "platform transparency report"
 
-**Everything carries provenance.** Every stored fact has a source, a method, a
-timestamp, a confidence and an evidence URL. The schema *rejects* a write
-without them. When a check establishes nothing, the result is `UNVERIFIED` — a
-first-class state, never a guess. Two signals cannot be established honestly by
-any free API — whether a business is running ads, and where it ranks — so those
-stay `UNVERIFIED` and surface in the dashboard as one-click links for you to
-check yourself. Record what you find with `leadgen ads` / `leadgen search`.
+# a time-boxed experiment, with kill criteria decided in advance
+python -m fiftyk dipcheck unity_asset_store --method "ship one asset, measure 60 days" \
+    --hours 20 --kill "fewer than 5 sales in 60 days" --kill "zero organic impressions"
 
-**No Google Maps Content is ever persisted.** `PersistedModel` refuses any field
-named `rating`, `phone`, `business_name`, `website_uri` and so on, at
-class-definition time. `tests/test_tos_conformance.py` fails the build if a model
-slips past it. If a feature seems to need one of these, the feature is wrong.
+# a real month — the model corrects itself against reality
+python -m fiftyk actual unity_asset_store --month 2026-09 --net 3200 --hours 20 --listings 8
+```
 
-## Outreach channels
+## How it avoids lying to you
 
-Only two cold channels are legal and safe here, and the code only supports those.
+**Provenance is enforced by the schema.** Every figure carries a source, method,
+timestamp, confidence and evidence URL. A write without them is rejected.
+`UNVERIFIED` is a first-class state.
 
-- **Email** — no Indian statutory equivalent to CAN-SPAM; IT Act s.66A was struck
-  down in 2015. Set up SPF, DKIM and DMARC; keep complaints under 0.1%.
-- **Walk-in** — unregulated for commercial premises, and the best-converting
-  channel in the research.
+**Survivor bias is tracked explicitly.** Every figure declares its sample basis.
+`MEDIAN` and `AGGREGATE` can drive projections; `MEAN`, `TOP_DECILE` and
+`ANECDOTE` cannot — in a power-law market the average describes almost nobody.
+A projection resting on them is downgraded and flagged.
 
-Cold calling makes you an Unregistered Telemarketer under TRAI's TCCCPR. Since
-February 2025 the complainant need not even be on DND, and the escalation ends in
-disconnection of *all* your telecom resources for up to two years, blacklisted
-across every operator — and it attaches to you, not the SIM, so a second number
-does not help. Cold SMS is worse. Cold WhatsApp breaches Meta's policy outright.
+**Missing evidence is split by who can fix it.** "No published figure found" and
+"only you know how fast you work" are different problems, reported separately.
 
-Once a prospect replies, phone and WhatsApp are fine — the conversation is theirs.
+**Blocked options stay visible, with their arithmetic.** Including the ones you
+excluded — so the price of the exclusion is on screen rather than forgotten.
 
-## Before your first email
+## Research loop
 
-1. Register a personal-name domain and put your own one-page site on it. You are
-   selling web presence; yours is the proof. Owners flag pitchers with no site of
-   their own as instant deletes.
-2. Configure SPF, DKIM and DMARC on that domain.
-3. Nothing needs registering to freelance in India — no incorporation, no Udyam,
-   no trade licence. GST starts at ₹20 lakh, for interstate clients too
-   (Notification 10/2017-IT). Until then invoices must carry no GSTIN and no GST
-   line.
+There is no Anthropic API key in this environment, so `fiftyk research` does not
+pretend to run research itself. It emits a prioritised brief — what is unknown,
+what has gone stale, which fatal assumptions are untested — precise enough to
+hand to a researcher or an agent. Answers come back through `fiftyk record`,
+where the schema enforces sourcing.
 
-*Not legal or tax advice — confirm with a CA before scaling.*
+Opportunity landscapes do not change minute to minute. Weekly is the honest
+cadence; anything faster is dashboard theatre.
 
 ## Development
 
 ```bash
-pytest                    # 61 tests, no network calls
-python -m leadgen validate
+pytest                   # 83 tests, no network
+python -m fiftyk validate
 ```
 
-`CLAUDE.md` carries the rules this codebase is built on. Read it before changing
-anything — especially the no-assumptions rule and the Google data boundary.
+`CLAUDE.md` carries the rules this codebase is built on — particularly the
+no-assumptions rule, the no-fabrication rule, and the constraint set. Read it
+before changing anything.
