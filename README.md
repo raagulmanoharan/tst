@@ -131,11 +131,34 @@ excluded — so the price of the exclusion is on screen rather than forgotten.
 
 ## Research loop
 
-There is no Anthropic API key in this environment, so `fiftyk research` does not
-pretend to run research itself. It emits a prioritised brief — what is unknown,
-what has gone stale, which fatal assumptions are untested — precise enough to
-hand to a researcher or an agent. Answers come back through `fiftyk record`,
-where the schema enforces sourcing.
+`fiftyk research` prioritises what is worth finding out next by decision value —
+a missing figure on an already-blocked option is worth nothing, while a median on
+a live candidate can settle the question outright.
+
+`fiftyk research --run` then answers the brief using a **sidecar**: the
+authenticated Claude Code CLI, run headless as a subprocess. No API key to
+manage, and it inherits web search and fetch, so it establishes figures rather
+than recalling them.
+
+```bash
+python -m fiftyk research              # what to find out, highest value first
+python -m fiftyk research --run --limit 5 --budget 2.00
+```
+
+**The sidecar is not trusted.** Its answer is a claim, and the claim goes through
+the same provenance schema as everything else: no value, no source URL, or no
+recognisable sample basis, and it is rejected rather than stored. An unrecognised
+basis fails closed to `anecdote`. Every call reports its cost, and the run stops
+at the spend ceiling.
+
+That gate does real work. On its first live run against FAB, the sidecar found
+only aggregate payouts ($24M across ~20,000 publishers), recognised that dividing
+them gives a mean of a power-law distribution, and returned `found=false` rather
+than pass off ~$100/month as a median. A rejection is a correct answer.
+
+Questions that are judgement rather than lookup — *"can this algorithm surface a
+listing without promotion?"* — are held back from the sidecar and reported
+separately. They need reasoning, not a search.
 
 Opportunity landscapes do not change minute to minute. Weekly is the honest
 cadence; anything faster is dashboard theatre.

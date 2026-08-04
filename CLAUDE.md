@@ -102,6 +102,14 @@ them; if new evidence arrives, record it with provenance and let the verdict mov
 
 - Run `python -m fiftyk validate` after any change to the store or catalogue.
 - Run `pytest` before committing.
-- There is no Anthropic API key here, so `fiftyk research` emits a **brief** for
-  a researcher to fill, rather than pretending to run research itself.
+- Research runs through a **sidecar** — the authenticated Claude Code CLI, invoked
+  headless (`fiftyk research --run`). No API key. It inherits web search and fetch.
+- **The sidecar is not trusted.** Its output is a claim, not a fact. It passes
+  through the same provenance gate as everything else: no value, no source URL, or
+  no recognisable sample basis, and it is rejected. An unrecognised basis fails
+  closed to `anecdote`. Never add a path that writes sidecar output straight to the
+  store — a model recalling a figure from memory is the exact fabrication this
+  codebase exists to stop.
+- Sidecar spend is capped per run and reported. Keep the ceiling low.
+- Assumptions that need judgement rather than lookup stay out of the sidecar.
 - Secrets go in `.env`, which is gitignored.

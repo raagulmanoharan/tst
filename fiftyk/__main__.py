@@ -26,6 +26,7 @@ from .feasibility import Verdict, assess, rank
 from .goal import Profile
 from .models import DipCheck, MonthlyActual, Stage
 from .provenance import Confidence, Observation, SampleBasis, Source
+from . import sidecar
 from .research import brief, format_brief
 from .sensitivity import analyse, summarise
 from .store import DEFAULT_DB_PATH, Store
@@ -249,7 +250,61 @@ def cmd_relax(store: Store, args, profile: Profile) -> int:
 
 
 def cmd_research(store: Store, args, profile: Profile) -> int:
-    print(format_brief(brief(list(store.all()), profile.goal, profile.constraints)))
+    opportunities = list(store.all())
+    items = brief(opportunities, profile.goal, profile.constraints)
+
+    if not args.run:
+        print(format_brief(items))
+        if items and sidecar.available():
+            print("\nRun `fiftyk research --run` to have the sidecar answer these.")
+        return 0
+
+    if not sidecar.available():
+        sys.exit(
+            "error: Claude Code CLI not found, so the sidecar cannot run.\n"
+            "Set CLAUDE_CODE_EXECPATH, or answer the brief by hand with `fiftyk record`."
+        )
+
+    # The sidecar establishes figures. Assumptions like "can this algorithm
+    # surface a listing without promotion" are judgement calls, not lookups, and
+    # are left for a human or a reasoning pass.
+    lookups = [i for i in items if i.field != "assumption"]
+    judgement = [i for i in items if i.field == "assumption"]
+    if not lookups:
+        print("Nothing left that a lookup can settle.")
+        return 0
+
+    by_key = {o.key: o for o in opportunities}
+    contexts = {k: f"{o.name} — {o.summary}" for k, o in by_key.items()}
+
+    print(f"Asking the sidecar {min(len(lookups), args.limit or len(lookups))} questions "
+          f"(ceiling ${args.budget:.2f})...\n")
+    report = sidecar.run(lookups, contexts, budget_usd=args.budget, limit=args.limit)
+
+    stored = 0
+    for finding in report.findings:
+        opportunity = by_key.get(finding.item.opportunity_key)
+        observation = finding.as_observation()
+        if opportunity is None or observation is None:
+            print(f"  reject  {finding.item.opportunity_key}.{finding.item.field}"
+                  f" — {finding.rejected_reason}")
+            continue
+        setattr(opportunity.economics, finding.item.field, observation)
+        opportunity.last_researched_at = observation.observed_at
+        store.upsert(opportunity)
+        stored += 1
+        print(f"  stored  {finding.item.opportunity_key}.{finding.item.field}"
+              f" = {observation.value:,.2f}  [{observation.basis.value}]")
+
+    print(f"\n{stored} stored, {len(report.rejected)} rejected. "
+          f"Spent ${report.spent_usd:.2f}.")
+    if report.stopped_early:
+        print(f"Stopped early: {report.stopped_early}")
+    if judgement:
+        print(f"\n{len(judgement)} assumptions still need judgement, not lookup:")
+        for item in judgement[:5]:
+            print(f"  {item.opportunity_key}: {item.question}")
+    print("\nRe-run `fiftyk status` to see what moved.")
     return 0
 
 
@@ -318,7 +373,13 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(fn=cmd_actual)
 
     sub.add_parser("relax", help="which constraint to give up").set_defaults(fn=cmd_relax)
-    sub.add_parser("research", help="what to find out next").set_defaults(fn=cmd_research)
+    p = sub.add_parser("research", help="what to find out next")
+    p.add_argument("--run", action="store_true",
+                   help="have the sidecar answer the brief (uses the authenticated Claude Code CLI)")
+    p.add_argument("--budget", type=float, default=sidecar.DEFAULT_BUDGET_USD,
+                   help="spend ceiling in USD for this run")
+    p.add_argument("--limit", type=int, default=None, help="cap how many questions to ask")
+    p.set_defaults(fn=cmd_research)
     sub.add_parser("validate", help="audit provenance").set_defaults(fn=cmd_validate)
 
     p = sub.add_parser("dashboard", help="render to HTML")
