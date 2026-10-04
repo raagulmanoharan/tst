@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#060708" />
+  <title>The Ashen Crown — Cinematic Three.js Chess</title>
+  <style>
+:root{color-scheme:dark;--bg:#060708;--panel:#0d0f10;--line:#282a2a;--text:#eee8db;--muted:#8e918d;--gold:#b99a61;--red:#8b3d31}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#20201c 0,#08090a 42%,#050606 100%);color:var(--text);font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}.app-shell{width:min(100%,560px);margin:0 auto;padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 18px)}.topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:5px 2px 14px}.topbar h1{font-family:Georgia,serif;font-size:24px;font-weight:500;letter-spacing:-.03em;margin:2px 0 0}.eyebrow{font-size:9px;letter-spacing:.25em;color:#a78d5d;margin:0;font-weight:750}.status{font-size:9px;letter-spacing:.12em;color:#858986;display:flex;align-items:center;gap:7px;white-space:nowrap;margin-top:4px}.live-dot{width:6px;height:6px;border-radius:50%;background:#a98a55;box-shadow:0 0 12px #a98a55}.match-strip{border-top:1px solid var(--line);border-bottom:1px solid var(--line);min-height:46px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#b7b5ae;font-size:11px}.match-strip>div{display:flex;align-items:center;gap:7px}.match-strip b{font-weight:590}.match-strip>span{font-size:8px;letter-spacing:.15em;color:#8f7951;border:1px solid #3b3326;padding:5px 7px}.crest{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;border:1px solid #343737}.crest.ivory{background:#ded8ca;color:#38342c}.crest.obsidian{background:#121516;color:#a99164}.viewport-shell{height:min(66vh,600px);min-height:490px;position:relative;overflow:hidden;background:#070808;border-left:1px solid #151717;border-right:1px solid #151717}.viewport-shell canvas{display:block;width:100%;height:100%;touch-action:none}.vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 45%,transparent 46%,rgba(0,0,0,.24) 73%,rgba(0,0,0,.74) 100%)}.loading-layer{position:absolute;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;background:radial-gradient(circle,#151614 0,#070808 66%);text-align:center;transition:opacity .5s ease}.loading-layer.hidden{opacity:0;pointer-events:none}.loading-layer b{font-family:Georgia,serif;font-weight:500;font-size:19px}.loading-layer small{max-width:280px;color:#858984;line-height:1.5}.loading-mark{font-size:30px;color:#a98a55;animation:pulse 1.8s ease-in-out infinite}@keyframes pulse{50%{transform:scale(1.18);opacity:.45}}.cinema-bars{position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none}.cinema-bars i{display:block;height:0;background:#000;transition:height .45s cubic-bezier(.2,.8,.2,1)}.cinema-bars.active i{height:11.5%}.capture-copy{position:absolute;z-index:6;left:22px;right:22px;bottom:14%;opacity:0;transform:translateY(12px);pointer-events:none;transition:.42s ease}.capture-copy.active{opacity:1;transform:none}.capture-copy p{font-size:9px;letter-spacing:.23em;color:#c19a62;margin:0 0 8px;font-weight:700}.capture-copy h2{font-family:Georgia,serif;font-size:29px;line-height:1.03;margin:0 0 9px;font-weight:400;max-width:420px;text-shadow:0 2px 20px #000}.capture-copy span{font-size:11px;line-height:1.5;color:#c0c1bd;display:block;max-width:390px}.scene-hud{position:absolute;z-index:4;bottom:9px;left:12px;right:12px;display:flex;justify-content:space-between;pointer-events:none;font-size:8px;letter-spacing:.13em;color:#727673}.piece-card{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:14px 3px 15px;display:grid;grid-template-columns:minmax(0,1fr) minmax(135px,.72fr);gap:18px;min-height:104px}.piece-card h2{font-family:Georgia,serif;font-size:18px;font-weight:500;margin:3px 0 3px}.piece-card #pieceRole{font-size:8px;letter-spacing:.18em;color:#7d817d;margin:0}.piece-card>p{font-family:Georgia,serif;color:#a4a39d;font-size:11px;line-height:1.45;margin:1px 0 0}.controls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding-top:10px}.controls button{min-height:64px;border:1px solid #292c2b;background:linear-gradient(#111313,#0b0d0d);color:var(--text);border-radius:2px;display:grid;grid-template-columns:24px 1fr;text-align:left;align-items:center;padding:9px 10px;cursor:pointer}.controls button:disabled{opacity:.42;cursor:wait}.controls button span{grid-row:1/3;font-size:16px;color:#b59761}.controls button b{font-size:11px;font-weight:620}.controls button small{font-size:8px;color:#777b78;margin-top:-3px}.asset-credit{text-align:center;color:#515451;font-size:8px;letter-spacing:.06em;padding:11px 0 0}@media(max-width:380px){.app-shell{padding-left:9px;padding-right:9px}.topbar h1{font-size:21px}.match-strip b{font-size:10px}.viewport-shell{min-height:440px}.piece-card{grid-template-columns:1fr}.piece-card>p{margin-top:-8px}.controls button{padding:7px;grid-template-columns:20px 1fr}.capture-copy h2{font-size:25px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
+
+</style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/",
+      "chess.js": "https://cdn.jsdelivr.net/npm/chess.js@1.4.0/+esm"
+    }
+  }
+  </script>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">THE ASHEN CROWN</p>
+        <h1>War remembers every move.</h1>
+      </div>
+      <div class="status"><span class="live-dot"></span><span id="rendererStatus">LOADING 3D</span></div>
+    </header>
+
+    <section class="match-strip">
+      <div><span class="crest ivory">✦</span><b>House Aurell</b></div>
+      <span id="turnPill">AWAKENING THE TABLE</span>
+      <div><b>House Veyr</b><span class="crest obsidian">◆</span></div>
+    </section>
+
+    <section class="viewport-shell" id="viewportShell">
+      <div id="viewport" aria-label="Interactive 3D chess board"></div>
+      <div class="loading-layer" id="loadingLayer">
+        <span class="loading-mark">✦</span>
+        <b id="loadingTitle">Loading the Treaty Table</b>
+        <small id="loadingDetail">Fetching the authored Poly Haven chess set…</small>
+      </div>
+      <div class="vignette"></div>
+      <div class="cinema-bars" id="cinemaBars"><i></i><i></i></div>
+      <div class="capture-copy" id="captureCopy">
+        <p id="captureKicker">THE WINTER RIDER REMEMBERS</p>
+        <h2 id="captureTitle">A leap over old blood.</h2>
+        <span id="captureBody">Sir Cael crosses the treaty line. Stone remembers the impact.</span>
+      </div>
+      <div class="scene-hud">
+        <span id="sceneHint">DRAG TO ORBIT · TAP A PIECE</span>
+        <span id="fpsLabel">PBR / REAL-TIME</span>
+      </div>
+    </section>
+
+    <section class="piece-card" id="pieceCard" aria-live="polite">
+      <div>
+        <p class="eyebrow" id="pieceFaction">THE TREATY TABLE</p>
+        <h2 id="pieceName">Thirty-two witnesses.</h2>
+        <p id="pieceRole">THE WAR OF ASH · YEAR 40</p>
+      </div>
+      <p id="pieceStory">Every piece entered the hall with a name. Every capture leaves a scar on the board.</p>
+    </section>
+
+    <nav class="controls" aria-label="Game controls">
+      <button id="demoBtn" disabled><span>⚔</span><b>Capture</b><small>Run cutscene</small></button>
+      <button id="resetBtn" disabled><span>↺</span><b>Reset</b><small>Restore war</small></button>
+      <button id="cameraBtn" disabled><span>◉</span><b>Camera</b><small>Hero angle</small></button>
+    </nav>
+
+    <footer class="asset-credit">Chess geometry &amp; PBR materials: Riley Queen / Poly Haven · CC0</footer>
+  </main>
+  <script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { Chess } from 'chess.js';
+
+const $ = (id) => document.getElementById(id);
+const viewport = $('viewport');
+const shell = $('viewportShell');
+const turnPill = $('turnPill');
+const pieceFaction = $('pieceFaction');
+const pieceName = $('pieceName');
+const pieceRole = $('pieceRole');
+const pieceStory = $('pieceStory');
+const demoBtn = $('demoBtn');
+const resetBtn = $('resetBtn');
+const cameraBtn = $('cameraBtn');
+const cinemaBars = $('cinemaBars');
+const captureCopy = $('captureCopy');
+const captureKicker = $('captureKicker');
+const captureTitle = $('captureTitle');
+const captureBody = $('captureBody');
+const rendererStatus = $('rendererStatus');
+const loadingLayer = $('loadingLayer');
+const loadingTitle = $('loadingTitle');
+const loadingDetail = $('loadingDetail');
+const sceneHint = $('sceneHint');
+const fpsLabel = $('fpsLabel');
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.65));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.domElement.setAttribute('aria-label', 'The Ashen Crown 3D chess battlefield');
+viewport.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060708);
+scene.fog = new THREE.FogExp2(0x060708, 0.028);
+
+const camera = new THREE.PerspectiveCamera(31, 1, 0.08, 90);
+const cameraHome = new THREE.Vector3(8.25, 7.2, 8.8);
+const cameraTarget = new THREE.Vector3(0, 0.45, 0);
+camera.position.copy(cameraHome);
+camera.lookAt(cameraTarget);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+pmrem.dispose();
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.25, 0.45, 0.9);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+const moon = new THREE.DirectionalLight(0xa8b4c8, 3.2);
+moon.position.set(-6, 10, -4);
+moon.castShadow = true;
+moon.shadow.mapSize.set(1024, 1024);
+moon.shadow.camera.left = moon.shadow.camera.bottom = -8;
+moon.shadow.camera.right = moon.shadow.camera.top = 8;
+scene.add(moon);
+
+const key = new THREE.SpotLight(0xffd6a0, 95, 34, Math.PI * 0.19, 0.58, 1.7);
+key.position.set(6.5, 9.5, 6);
+key.target.position.set(0, 0.2, 0);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+scene.add(key, key.target);
+
+const rim = new THREE.SpotLight(0x7c94bb, 70, 30, Math.PI * 0.22, 0.7, 2);
+rim.position.set(-7, 5.6, -6);
+rim.target.position.set(0, 1, 0);
+scene.add(rim, rim.target);
+
+const impactLight = new THREE.PointLight(0xffaa55, 0, 9, 1.6);
+impactLight.position.set(0, 1, 0);
+scene.add(impactLight);
+
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(20, 96),
+  new THREE.MeshStandardMaterial({ color: 0x090a0b, roughness: 0.92, metalness: 0.04 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -0.34;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// Distant architecture is deliberately silhouette-only; the authored chess set remains the hero asset.
+const columns = new THREE.Group();
+const colMat = new THREE.MeshStandardMaterial({ color: 0x0e1010, roughness: 0.9, metalness: 0.08 });
+for (let i = 0; i < 10; i++) {
+  const a = (i / 10) * Math.PI * 2;
+  const col = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.9, 11, 16), colMat);
+  col.position.set(Math.cos(a) * 12.5, 5.0, Math.sin(a) * 12.5);
+  col.receiveShadow = true;
+  columns.add(col);
+}
+scene.add(columns);
+
+const boardRoot = new THREE.Group();
+scene.add(boardRoot);
+const interactionRoot = new THREE.Group();
+scene.add(interactionRoot);
+const fxRoot = new THREE.Group();
+scene.add(fxRoot);
+
+const SCALE = 17.275; // derived from the source model's ~57.89 mm square spacing.
+const BASE_WORLD_Y = 0.30;
+const chess = new Chess();
+let assetScene = null;
+let pieces = [];
+let selected = null;
+let legalMoves = [];
+let mode = 'loading';
+let orbit = { yaw: 0.74, pitch: 0.64, dist: 13.2 };
+let pointerDown = null;
+let cameraTween = null;
+let cutscene = null;
+let frameAccumulator = 0;
+let frameCounter = 0;
+let wounds = [];
+const fragments = [];
+const clock = new THREE.Clock();
+
+const LORE = {
+  a1:['The Last Gate','The western fortress surrendered once, then asked to be carved into a rook so it could never retreat again.'],
+  b1:['Sir Cael, The Winter Rider','He crossed the frozen north to warn Aurell that the peace had already failed. He arrived one day too late.'],
+  c1:['Ilyr, Keeper of Cinders','He memorised every name spoken before a battle and spent forty years reciting them back to the crown.'],
+  d1:['Queen Elowen, The Bright Ruin','She signed the treaty knowing it would fail, because one night without war was still worth buying.'],
+  e1:['Aurel IV, The Crown Without Sleep','Every move is made in his name. Every missing piece is counted against him.'],
+  f1:['Saint Vessa of the Split Bell','She blessed both armies before discovering they were praying for the same victory.'],
+  g1:['Ser Oris, The Thaw Rider','He was born during the first siege and has never seen a winter without soldiers in it.'],
+  h1:['The Dawn Bastion','Its stones came from the palace nursery. The royal children learned to walk where soldiers now die.'],
+  a2:['Mara of the Reed Gate','She moved one ink mark on a military map and sent an army around her village instead of through it.'],
+  b2:['Tomas Bellmaker','He melted the treaty bells into armour when their sound stopped meaning peace.'],
+  c2:['Nerin, Son of No Banner','He enlisted under an empty crest so no lord could claim the life he gave.'],
+  d2:['Sela of the Salt Road','She carried letters between enemies until the letters became orders to kill each other.'],
+  e2:['Ser Orren, The First Vow','He carried the first treaty over the winter pass and still believes words should weigh more than steel.'],
+  f2:['Pera the Orchard Keeper','Her orchard became a battlefield. She fights so one tree might outlive the war.'],
+  g2:['Milo, The Unrecorded','He scratched his own name from the rolls after learning history only remembers officers.'],
+  h2:['Ysra of the River Steps','She ferried refugees at night and soldiers by day, never asking which side deserved the shore.'],
+  a8:['The Black Rampart','Built from conquered gatehouses, it carries the keys of seven cities inside its hollow crown.'],
+  b8:['Veyr Blackmane','He returned from the eastern battle without his horse and has never spoken of the road home.'],
+  c8:['The Veiled Confessor','He hears the dying truth of soldiers and seals each secret beneath black wax.'],
+  d8:['Queen Maevra, The Quiet Knife','She never raised her voice in council. Three kingdoms disappeared while she whispered.'],
+  e8:['Veyr IX, The Hollow Crown','He inherited a victory no living witness remembers and a war every child understands.'],
+  f8:['Mother Sable','She taught battlefield surgeons to pray only after their hands stopped shaking.'],
+  g8:['Rooke of the Red Snow','The name is a joke. He is a knight, and the snow was only red once. Once was enough.'],
+  h8:['The Night Citadel','Its foundations contain the first stone thrown when the treaty collapsed.'],
+  a7:['Ashen Fen','He joined for bread and stayed because going home required crossing the front.'],
+  b7:['Kell, Keeper of Crows','He fed the battlefield birds so they would stop feeding on the dead.'],
+  c7:['Dara Without Hearth','Her village exists on maps printed before the war and nowhere else.'],
+  d7:['Old Ren','He has survived long enough to serve three kings and trust none of them.'],
+  e7:['Venn the Lamp-Lighter','He lit the surrender road every night even after both armies forgot it existed.'],
+  f7:['Tal of the Broken Oar','A river conscript who cannot swim and somehow keeps surviving crossings.'],
+  g7:['Eris, Last of Hollow Farm','She carries soil from home in a pouch under her armour.'],
+  h7:['Noam the Witness','His only order was to remember what happened. He wishes they had given him any other task.']
+};
+
+const CAPTURE_LINES = {
+  pawn:['THE FOOT SOLDIER REMEMBERS','One square was enough to change a life.'],
+  knight:['THE RIDER REMEMBERS','A leap over old blood.'],
+  bishop:['THE CONFESSOR REMEMBERS','The diagonal becomes a confession.'],
+  rook:['THE BASTION REMEMBERS','Stone moves. Something must break.'],
+  queen:['THE QUEEN REMEMBERS','The room grows quiet before she arrives.'],
+  king:['THE CROWN REMEMBERS','The realm itself steps forward.']
+};
+
+function squareWorld(file, rank, y = BASE_WORLD_Y) {
+  return new THREE.Vector3(file - 3.5, y, rank - 3.5);
+}
+function localSquare(file, rank, baseY) {
+  return new THREE.Vector3((file - 3.5) / SCALE, baseY, (rank - 3.5) / SCALE);
+}
+function coordToSquare(f, r) { return String.fromCharCode(97 + f) + (r + 1); }
+function squareToCoord(s) { return { f: s.charCodeAt(0) - 97, r: Number(s[1]) - 1 }; }
+function sideForTurn() { return chess.turn() === 'w' ? 'white' : 'black'; }
+function pieceAt(f, r) { return pieces.find(p => p.alive && p.f === f && p.r === r); }
+function pieceAtSquare(s) { const {f,r}=squareToCoord(s); return pieceAt(f,r); }
+function smooth(t){return t*t*(3-2*t)}
+function easeOut(t){return 1-Math.pow(1-t,3)}
+
+const selectionRing = new THREE.Mesh(
+  new THREE.TorusGeometry(0.49, 0.025, 10, 64),
+  new THREE.MeshBasicMaterial({ color: 0xd6b777, transparent: true, opacity: 0.92 })
+);
+selectionRing.rotation.x = Math.PI / 2;
+selectionRing.position.y = 0.365;
+selectionRing.visible = false;
+scene.add(selectionRing);
+
+const legalRings = [];
+for (let i = 0; i < 32; i++) {
+  const r = new THREE.Mesh(
+    new THREE.RingGeometry(0.10, 0.17, 32),
+    new THREE.MeshBasicMaterial({ color: 0xf0d39a, transparent: true, opacity: 0.78, side: THREE.DoubleSide })
+  );
+  r.rotation.x = -Math.PI / 2;
+  r.position.y = 0.355;
+  r.visible = false;
+  scene.add(r);
+  legalRings.push(r);
+}
+
+for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
+  const hit = new THREE.Mesh(
+    new THREE.BoxGeometry(0.98, 0.035, 0.98),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+  );
+  hit.position.copy(squareWorld(f, r, 0.315));
+  hit.userData.square = coordToSquare(f, r);
+  hit.userData.file = f;
+  hit.userData.rank = r;
+  interactionRoot.add(hit);
+}
+
+async function resolvePolyHavenGltf() {
+  const res = await fetch('https://api.polyhaven.com/files/chess_set', { headers: { 'Accept':'application/json' } });
+  if (!res.ok) throw new Error(`Poly Haven API ${res.status}`);
+  const tree = await res.json();
+  const records = [];
+  const walk = (node, path = []) => {
+    if (!node || typeof node !== 'object') return;
+    if (typeof node.url === 'string') records.push({ ...node, path: path.join('/'), url: node.url });
+    for (const [k,v] of Object.entries(node)) if (v && typeof v === 'object') walk(v, [...path, k]);
+  };
+  walk(tree);
+  const gltfs = records.filter(r => /\.gltf(?:$|\?)/i.test(r.url));
+  if (!gltfs.length) throw new Error('No glTF variant found');
+  const score = (r) => {
+    const s = `${r.path} ${r.url}`.toLowerCase();
+    let n = 0;
+    if (s.includes('2k')) n += 80;
+    else if (s.includes('1k')) n += 70;
+    else if (s.includes('4k')) n += 40;
+    if (s.includes('gltf')) n += 30;
+    if (s.includes('blend')) n -= 100;
+    return n;
+  };
+  gltfs.sort((a,b)=>score(b)-score(a));
+  return gltfs[0].url;
+}
+
+function loadGltf(url) {
+  return new Promise((resolve, reject) => new GLTFLoader().load(url, resolve, undefined, reject));
+}
+
+function configureAsset(root) {
+  boardRoot.clear();
+  assetScene = root;
+  assetScene.scale.setScalar(SCALE);
+  boardRoot.add(assetScene);
+  pieces = [];
+
+  const top = [...assetScene.children];
+  for (const node of top) {
+    const name = node.name || '';
+    node.traverse(o => {
+      if (o.isMesh) {
+        o.castShadow = !/board/i.test(name);
+        o.receiveShadow = true;
+        const materials = Array.isArray(o.material) ? o.material : [o.material];
+        for (const m of materials) {
+          if (!m) continue;
+          if ('envMapIntensity' in m) m.envMapIntensity = 1.25;
+          if (m.map) m.map.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+          if (m.normalMap) m.normalMap.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        }
+      }
+    });
+
+    const match = name.match(/^piece_(rook|pawn|bishop|queen|king|knight)_(white|black)(?:_(\d+))?$/i);
+    if (!match) continue;
+    const type = match[1].toLowerCase();
+    const side = match[2].toLowerCase();
+    const worldX = node.position.x * SCALE;
+    const worldZ = node.position.z * SCALE;
+    const f = THREE.MathUtils.clamp(Math.round(worldX + 3.5), 0, 7);
+    const r = THREE.MathUtils.clamp(Math.round(worldZ + 3.5), 0, 7);
+    const square = coordToSquare(f, r);
+    const [storyName, story] = LORE[square] || [`${side} ${type}`, 'A witness whose story has not yet been recovered.'];
+    const piece = {
+      type, side, f, r, square, mesh: node, alive: true,
+      name: storyName, story,
+      baseY: node.position.y,
+      initialPosition: node.position.clone(),
+      initialRotation: node.rotation.clone(),
+      initialScale: node.scale.clone()
+    };
+    node.traverse(o => { o.userData.piece = piece; });
+    pieces.push(piece);
+  }
+
+  // The official asset contains exactly 32 named piece nodes. Refuse a degraded experience if parsing fails.
+  if (pieces.length !== 32) throw new Error(`Expected 32 authored pieces, found ${pieces.length}`);
+}
+
+async function loadAssets() {
+  loadingTitle.textContent = 'Loading the Treaty Table';
+  loadingDetail.textContent = 'Resolving the official Poly Haven PBR model…';
+  let gltf;
+  try {
+    const url = await resolvePolyHavenGltf();
+    loadingDetail.textContent = 'Loading authored geometry and PBR textures…';
+    gltf = await loadGltf(url);
+  } catch (primaryError) {
+    console.warn('Poly Haven API path failed, using CC0 geometry mirror.', primaryError);
+    loadingDetail.textContent = 'Loading the CC0 geometry mirror…';
+    gltf = await loadGltf('https://raw.githubusercontent.com/Mike1934F/3d-chess/main/assets/chess_set.gltf');
+  }
+  configureAsset(gltf.scene);
+  resetGame(true);
+  mode = 'play';
+  loadingLayer.classList.add('hidden');
+  rendererStatus.textContent = `THREE.JS r${THREE.REVISION} · PBR`;
+  demoBtn.disabled = resetBtn.disabled = cameraBtn.disabled = false;
+}
+
+function resetGame(keepCamera = false) {
+  chess.reset();
+  selected = null;
+  legalMoves = [];
+  selectionRing.visible = false;
+  legalRings.forEach(r => r.visible = false);
+  captureCopy.classList.remove('active');
+  cinemaBars.classList.remove('active');
+  for (const p of pieces) {
+    p.alive = true;
+    p.mesh.visible = true;
+    p.mesh.position.copy(p.initialPosition);
+    p.mesh.rotation.copy(p.initialRotation);
+    p.mesh.scale.copy(p.initialScale);
+    p.f = Math.round(p.mesh.position.x * SCALE + 3.5);
+    p.r = Math.round(p.mesh.position.z * SCALE + 3.5);
+    p.square = coordToSquare(p.f, p.r);
+    setPieceOpacity(p, 1);
+  }
+  for (const w of wounds) fxRoot.remove(w);
+  wounds = [];
+  for (const f of fragments) fxRoot.remove(f.mesh);
+  fragments.length = 0;
+  turnPill.textContent = 'AURELL TO MOVE';
+  sceneHint.textContent = 'DRAG TO ORBIT · TAP A PIECE';
+  pieceFaction.textContent = 'THE TREATY TABLE';
+  pieceName.textContent = 'Thirty-two witnesses.';
+  pieceRole.textContent = 'THE WAR OF ASH · YEAR 40';
+  pieceStory.textContent = 'Every piece entered the hall with a name. Every capture leaves a scar on the board.';
+  if (!keepCamera) flyCamera(cameraHome, cameraTarget, 0.7);
+}
+
+function updateCard(p) {
+  pieceFaction.textContent = p.side === 'white' ? 'HOUSE AURELL' : 'HOUSE VEYR';
+  pieceName.textContent = p.name;
+  pieceRole.textContent = `${p.type.toUpperCase()} · ${coordToSquare(p.f,p.r).toUpperCase()}`;
+  pieceStory.textContent = p.story;
+}
+
+function currentLegalFor(p) {
+  return chess.moves({ square: coordToSquare(p.f,p.r), verbose: true });
+}
+
+function clearSelection() {
+  selected = null;
+  legalMoves = [];
+  selectionRing.visible = false;
+  legalRings.forEach(r => r.visible = false);
+}
+
+function selectPiece(p) {
+  if (mode !== 'play' || !p.alive || p.side !== sideForTurn()) return;
+  selected = p;
+  legalMoves = currentLegalFor(p);
+  const pos = squareWorld(p.f, p.r, 0.36);
+  selectionRing.position.copy(pos);
+  selectionRing.visible = true;
+  legalRings.forEach((ring, i) => {
+    const move = legalMoves[i];
+    if (!move) { ring.visible = false; return; }
+    const {f,r} = squareToCoord(move.to);
+    ring.position.copy(squareWorld(f,r,0.355));
+    ring.material.color.set(move.captured ? 0xc26d58 : 0xe8c989);
+    ring.visible = true;
+  });
+  updateCard(p);
+}
+
+function setPieceOpacity(p, opacity) {
+  p.mesh.traverse(o => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const cloned = mats.map(m => {
+      if (!m) return m;
+      if (!m.userData._ashenClone) {
+        const c = m.clone();
+        c.userData._ashenClone = true;
+        o.material = Array.isArray(o.material) ? mats.map(x => x === m ? c : x) : c;
+        return c;
+      }
+      return m;
+    });
+    for (const m of cloned) if (m) { m.transparent = opacity < 1; m.opacity = opacity; }
+  });
+}
+
+function animateMove(p, toF, toR, duration = 0.45, onDone) {
+  const start = p.mesh.position.clone();
+  const end = localSquare(toF, toR, p.baseY);
+  const t0 = performance.now();
+  mode = 'anim';
+  function tick(now) {
+    const t = Math.min(1, (now - t0) / (duration * 1000));
+    const e = easeOut(t);
+    p.mesh.position.lerpVectors(start, end, e);
+    p.mesh.position.y = p.baseY + (Math.sin(Math.PI * t) * 0.16) / SCALE;
+    if (t < 1) requestAnimationFrame(tick);
+    else {
+      p.mesh.position.copy(end);
+      p.f = toF; p.r = toR; p.square = coordToSquare(toF,toR);
+      mode = 'play';
+      onDone?.();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+function updateTurnUI() {
+  if (chess.isCheckmate()) {
+    turnPill.textContent = 'CHECKMATE · THE WAR ENDS';
+    return;
+  }
+  const side = sideForTurn();
+  turnPill.textContent = `${side === 'white' ? 'AURELL' : 'VEYR'} TO MOVE${chess.inCheck() ? ' · CHECK' : ''}`;
+}
+
+function finishNormalMove(p, move) {
+  const {f,r} = squareToCoord(move.to);
+  animateMove(p, f, r, 0.46, () => {
+    if (move.flags.includes('k') || move.flags.includes('q')) {
+      const rank = p.side === 'white' ? 0 : 7;
+      const rookFrom = move.flags.includes('k') ? 7 : 0;
+      const rookTo = move.flags.includes('k') ? 5 : 3;
+      const rook = pieceAt(rookFrom, rank);
+      if (rook) animateMove(rook, rookTo, rank, 0.34, updateTurnUI);
+      else updateTurnUI();
+    } else updateTurnUI();
+  });
+}
+
+function commitMove(p, toF, toR) {
+  const target = coordToSquare(toF,toR);
+  const move = legalMoves.find(m => m.to === target);
+  if (!move || mode !== 'play') return;
+  const from = coordToSquare(p.f,p.r);
+  let victim = pieceAt(toF,toR);
+  if (move.flags.includes('e')) {
+    const victimRank = toR + (p.side === 'white' ? -1 : 1);
+    victim = pieceAt(toF, victimRank);
+  }
+  clearSelection();
+  chess.move({ from, to: target, promotion: 'q' });
+  if (victim) runCapture(p, victim, toF, toR, move);
+  else finishNormalMove(p, move);
+}
+
+function cloneVictimMaterialForFade(victim) {
+  victim.mesh.traverse(o => {
+    if (!o.isMesh || !o.material) return;
+    if (Array.isArray(o.material)) o.material = o.material.map(m => m.clone());
+    else o.material = o.material.clone();
+  });
+}
+
+function spawnFragments(victim, count = 30) {
+  const pos = new THREE.Vector3();
+  victim.mesh.getWorldPosition(pos);
+  for (let i = 0; i < count; i++) {
+    const shardMat = new THREE.MeshStandardMaterial({
+      color: victim.side === 'white' ? 0xc9c6bc : 0x151719,
+      roughness: 0.42,
+      metalness: victim.side === 'white' ? 0.08 : 0.32,
+      transparent: true,
+      opacity: 1
+    });
+    const shard = new THREE.Mesh(new THREE.TetrahedronGeometry(0.035 + Math.random()*0.07), shardMat);
+    shard.position.copy(pos).add(new THREE.Vector3((Math.random()-.5)*.42, 0.18 + Math.random()*0.8, (Math.random()-.5)*.42));
+    shard.castShadow = true;
+    fxRoot.add(shard);
+    fragments.push({
+      mesh: shard,
+      vel: new THREE.Vector3((Math.random()-.5)*2.2, 1.1+Math.random()*2.4, (Math.random()-.5)*2.2),
+      spin: new THREE.Vector3(Math.random()*6,Math.random()*6,Math.random()*6),
+      life: 1.25 + Math.random()*0.8
+    });
+  }
+}
+
+function addBoardWound(f, r) {
+  const group = new THREE.Group();
+  const center = squareWorld(f,r,0.348);
+  group.position.copy(center);
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(0.18, 0.23, 48),
+    new THREE.MeshBasicMaterial({ color: 0x2a100b, transparent: true, opacity: 0.82, side: THREE.DoubleSide, depthWrite: false })
+  );
+  ring.rotation.x = -Math.PI/2;
+  group.add(ring);
+  const lineMat = new THREE.LineBasicMaterial({ color: 0x1d0b08, transparent:true, opacity:.72 });
+  for (let i=0;i<7;i++) {
+    const a = i * Math.PI * 2 / 7 + Math.random()*.25;
+    const len = .28 + Math.random()*.33;
+    const pts = [new THREE.Vector3(0,0,0),new THREE.Vector3(Math.cos(a)*len*.46,0,Math.sin(a)*len*.46),new THREE.Vector3(Math.cos(a)*len,0,Math.sin(a)*len)];
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), lineMat);
+    group.add(line);
+  }
+  fxRoot.add(group);
+  wounds.push(group);
+}
+
+function makeCaptureCamera(attacker, victim) {
+  const a = new THREE.Vector3(), v = new THREE.Vector3();
+  attacker.mesh.getWorldPosition(a); victim.mesh.getWorldPosition(v);
+  const dir = new THREE.Vector3().subVectors(v,a).setY(0).normalize();
+  const side = new THREE.Vector3(-dir.z,0,dir.x);
+  const styles = {
+    pawn:   {approach:v.clone().addScaledVector(side,2.35).add(new THREE.Vector3(0,1.05,0)), impact:v.clone().addScaledVector(side,-1.75).add(new THREE.Vector3(0,.72,0)), fov:38},
+    knight: {approach:a.clone().addScaledVector(side,2.55).add(new THREE.Vector3(0,1.65,0)), impact:v.clone().addScaledVector(side,-2.0).add(new THREE.Vector3(0,1.05,0)), fov:42},
+    bishop: {approach:a.clone().addScaledVector(side,1.65).add(new THREE.Vector3(0,1.35,0)), impact:v.clone().addScaledVector(side,-2.5).add(new THREE.Vector3(0,.9,0)), fov:35},
+    rook:   {approach:a.clone().addScaledVector(dir,-1.6).add(new THREE.Vector3(0,.65,0)), impact:v.clone().addScaledVector(side,1.7).add(new THREE.Vector3(0,.55,0)), fov:46},
+    queen:  {approach:v.clone().add(new THREE.Vector3(2.8,2.25,2.3)), impact:v.clone().add(new THREE.Vector3(-2.0,1.2,-1.7)), fov:32},
+    king:   {approach:a.clone().addScaledVector(side,2.1).add(new THREE.Vector3(0,1.2,0)), impact:v.clone().addScaledVector(side,-1.5).add(new THREE.Vector3(0,.75,0)), fov:36}
+  };
+  return { ...styles[attacker.type], a, v, dir, side };
+}
+
+function runCapture(attacker, victim, f, r, move = null, demo = false) {
+  mode = 'cutscene';
+  cinemaBars.classList.add('active');
+  captureCopy.classList.remove('active');
+  const line = CAPTURE_LINES[attacker.type];
+  captureKicker.textContent = line[0];
+  captureTitle.textContent = line[1];
+  captureBody.textContent = `${attacker.name} takes ${victim.name}. The Treaty Table keeps the wound.`;
+  const cam = makeCaptureCamera(attacker,victim);
+  const startLocal = attacker.mesh.position.clone();
+  const endLocal = localSquare(f,r,attacker.baseY);
+  const victimStart = victim.mesh.position.clone();
+  cloneVictimMaterialForFade(victim);
+  cutscene = {
+    attacker,victim,f,r,move,demo,
+    t:0,duration:4.15,
+    camStart:camera.position.clone(),
+    fovStart:camera.fov,
+    startLocal,endLocal,victimStart,
+    ...cam,
+    hit:false,
+    wound:false
+  };
+}
+
+function impactCapture(c) {
+  if (c.hit) return;
+  c.hit = true;
+  spawnFragments(c.victim, c.attacker.type === 'rook' ? 38 : 30);
+  addBoardWound(c.f,c.r);
+  c.wound = true;
+  impactLight.position.copy(c.v).add(new THREE.Vector3(0,.65,0));
+  impactLight.intensity = c.attacker.type === 'queen' ? 150 : 105;
+  bloom.strength = 0.62;
+  captureCopy.classList.add('active');
+  if (navigator.vibrate) navigator.vibrate(c.attacker.type === 'rook' ? [24,35,40] : 22);
+}
+
+function finishCapture(c) {
+  c.victim.alive = false;
+  c.victim.mesh.visible = false;
+  c.attacker.mesh.position.copy(c.endLocal);
+  c.attacker.f = c.f; c.attacker.r = c.r; c.attacker.square = coordToSquare(c.f,c.r);
+  setPieceOpacity(c.victim,1);
+  c.victim.mesh.rotation.copy(c.victim.initialRotation);
+  cinemaBars.classList.remove('active');
+  captureCopy.classList.remove('active');
+  camera.fov = 31; camera.updateProjectionMatrix();
+  cutscene = null;
+  mode = 'play';
+  if (c.demo) {
+    turnPill.textContent = 'CAPTURE STUDY · TAP RESET TO PLAY';
+    sceneHint.textContent = 'REAL CAMERA · REAL GEOMETRY · PERSISTENT BOARD SCAR';
+  } else updateTurnUI();
+}
+
+function updateCutscene(dt) {
+  const c = cutscene;
+  if (!c) return;
+  c.t += dt;
+  const n = Math.min(1,c.t/c.duration);
+  const attacker = c.attacker.mesh;
+  const victim = c.victim.mesh;
+  const look = c.v.clone().add(new THREE.Vector3(0,.72,0));
+
+  if (n < .20) {
+    const t = smooth(n/.20);
+    camera.position.lerpVectors(c.camStart,c.approach,t);
+    camera.fov = THREE.MathUtils.lerp(c.fovStart,c.fov,t);
+    camera.updateProjectionMatrix();
+    camera.lookAt(look);
+  } else if (n < .56) {
+    const t = easeOut((n-.20)/.36);
+    attacker.position.lerpVectors(c.startLocal,c.endLocal,t);
+    const lift = {
+      pawn:.15, knight:1.22, bishop:.20, rook:.05, queen:.34, king:.10
+    }[c.attacker.type];
+    attacker.position.y = c.attacker.baseY + (Math.sin(Math.PI*t)*lift)/SCALE;
+    if (c.attacker.type === 'knight') attacker.rotation.z = c.attacker.initialRotation.z - Math.sin(Math.PI*t)*.13;
+    if (c.attacker.type === 'queen') attacker.rotation.y = c.attacker.initialRotation.y + Math.sin(t*Math.PI)*.55;
+    if (c.attacker.type === 'rook') attacker.rotation.z = c.attacker.initialRotation.z + Math.sin(t*Math.PI*3)*.012*(1-t);
+    camera.position.lerpVectors(c.approach,c.impact,t);
+    camera.lookAt(look);
+    if (t > .74) impactCapture(c);
+  } else if (n < .78) {
+    const t = smooth((n-.56)/.22);
+    const opacity = 1-t;
+    victim.rotation.z = victim.initialRotation.z + (c.attacker.type==='rook'?1.1:.72)*t*(c.side.x>=0?1:-1);
+    victim.position.y = c.victimStart.y - (.18*t)/SCALE;
+    victim.traverse(o=>{
+      if(!o.isMesh||!o.material)return;
+      const mats=Array.isArray(o.material)?o.material:[o.material];
+      for(const m of mats){m.transparent=true;m.opacity=opacity;}
+    });
+    const orbitAngle = t*.55;
+    const rel = c.impact.clone().sub(c.v);
+    const x = rel.x*Math.cos(orbitAngle)-rel.z*Math.sin(orbitAngle);
+    const z = rel.x*Math.sin(orbitAngle)+rel.z*Math.cos(orbitAngle);
+    camera.position.set(c.v.x+x,c.impact.y+Math.sin(t*Math.PI)*.25,c.v.z+z);
+    camera.lookAt(look);
+    impactLight.intensity = THREE.MathUtils.lerp(105,0,t);
+    bloom.strength = THREE.MathUtils.lerp(.62,.24,t);
+  } else {
+    const t = smooth((n-.78)/.22);
+    camera.position.lerpVectors(c.impact,cameraHome,t);
+    camera.fov = THREE.MathUtils.lerp(c.fov,31,t);
+    camera.updateProjectionMatrix();
+    camera.lookAt(new THREE.Vector3().lerpVectors(look,cameraTarget,t));
+    if(n>.91){cinemaBars.classList.remove('active');captureCopy.classList.remove('active');}
+    if(n>=1) finishCapture(c);
+  }
+}
+
+function demoCapture() {
+  if (mode !== 'play') return;
+  resetGame(true);
+  const attacker = pieceAt(6,0); // g1 knight
+  const victim = pieceAt(5,6);   // f7 pawn
+  if (!attacker || !victim) return;
+  victim.f = 5; victim.r = 2; victim.square = 'f3';
+  victim.mesh.position.copy(localSquare(5,2,victim.baseY));
+  updateCard(attacker);
+  setTimeout(()=>runCapture(attacker,victim,5,2,null,true),180);
+}
+
+function flyCamera(pos, target, duration=.8) {
+  cameraTween = { from:camera.position.clone(), to:pos.clone(), target:target.clone(), elapsed:0, duration, fovFrom:camera.fov, fovTo:31 };
+}
+
+function updateCamera(dt) {
+  if (cutscene) return;
+  if (cameraTween) {
+    cameraTween.elapsed += dt;
+    const t = smooth(Math.min(1,cameraTween.elapsed/cameraTween.duration));
+    camera.position.lerpVectors(cameraTween.from,cameraTween.to,t);
+    camera.fov = THREE.MathUtils.lerp(cameraTween.fovFrom,cameraTween.fovTo,t);
+    camera.updateProjectionMatrix();
+    camera.lookAt(cameraTween.target);
+    if (t>=1) cameraTween=null;
+    return;
+  }
+  const p = new THREE.Vector3(
+    Math.sin(orbit.yaw)*Math.cos(orbit.pitch)*orbit.dist,
+    Math.sin(orbit.pitch)*orbit.dist,
+    Math.cos(orbit.yaw)*Math.cos(orbit.pitch)*orbit.dist
+  );
+  camera.position.lerp(p,.075);
+  camera.lookAt(cameraTarget);
+}
+
+function updateFragments(dt) {
+  for (let i=fragments.length-1;i>=0;i--) {
+    const f=fragments[i];
+    f.life-=dt;
+    f.vel.y-=4.9*dt;
+    f.mesh.position.addScaledVector(f.vel,dt);
+    f.mesh.rotation.x+=f.spin.x*dt;
+    f.mesh.rotation.y+=f.spin.y*dt;
+    if(f.mesh.position.y<-.25){f.mesh.position.y=-.25;f.vel.y*=-.18;f.vel.x*=.72;f.vel.z*=.72;}
+    if(f.life<.45)f.mesh.material.opacity=Math.max(0,f.life/.45);
+    if(f.life<=0){fxRoot.remove(f.mesh);fragments.splice(i,1);}
+  }
+}
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+function pick(clientX,clientY) {
+  const rect=renderer.domElement.getBoundingClientRect();
+  mouse.x=((clientX-rect.left)/rect.width)*2-1;
+  mouse.y=-((clientY-rect.top)/rect.height)*2+1;
+  raycaster.setFromCamera(mouse,camera);
+  if(assetScene){
+    const hits=raycaster.intersectObject(assetScene,true);
+    for(const hit of hits){const p=hit.object.userData.piece;if(p?.alive)return {piece:p};}
+  }
+  const squares=raycaster.intersectObjects(interactionRoot.children,false);
+  if(squares[0])return {square:squares[0].object.userData};
+  return null;
+}
+
+renderer.domElement.addEventListener('pointerdown',e=>{
+  pointerDown={x:e.clientX,y:e.clientY,yaw:orbit.yaw,pitch:orbit.pitch,moved:false};
+  renderer.domElement.setPointerCapture(e.pointerId);
+});
+renderer.domElement.addEventListener('pointermove',e=>{
+  if(!pointerDown||mode==='cutscene')return;
+  const dx=e.clientX-pointerDown.x,dy=e.clientY-pointerDown.y;
+  if(Math.hypot(dx,dy)>6)pointerDown.moved=true;
+  if(pointerDown.moved){orbit.yaw=pointerDown.yaw-dx*.007;orbit.pitch=THREE.MathUtils.clamp(pointerDown.pitch+dy*.005,.34,1.08);}
+});
+renderer.domElement.addEventListener('pointerup',e=>{
+  if(!pointerDown)return;
+  const moved=pointerDown.moved;pointerDown=null;
+  if(moved||mode!=='play')return;
+  const hit=pick(e.clientX,e.clientY);if(!hit)return;
+  if(hit.piece){
+    if(selected&&hit.piece.side!==selected.side&&legalMoves.some(m=>m.to===coordToSquare(hit.piece.f,hit.piece.r)))commitMove(selected,hit.piece.f,hit.piece.r);
+    else selectPiece(hit.piece);
+  }else if(hit.square&&selected&&legalMoves.some(m=>m.to===hit.square.square))commitMove(selected,hit.square.file,hit.square.rank);
+});
+renderer.domElement.addEventListener('wheel',e=>{orbit.dist=THREE.MathUtils.clamp(orbit.dist+e.deltaY*.008,9.5,18);},{passive:true});
+
+demoBtn.addEventListener('click',demoCapture);
+resetBtn.addEventListener('click',()=>{if(mode==='cutscene')return;resetGame();});
+cameraBtn.addEventListener('click',()=>{if(mode!=='play')return;orbit.yaw+=Math.PI*.42;orbit.pitch=.50;orbit.dist=11.7;});
+
+function resize(){
+  const w=shell.clientWidth,h=shell.clientHeight;
+  renderer.setSize(w,h,false);
+  composer.setSize(w,h);
+  camera.aspect=w/h;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(shell);
+resize();
+
+function animate(){
+  const dt=Math.min(clock.getDelta(),.033);
+  updateCamera(dt);updateCutscene(dt);updateFragments(dt);
+  composer.render();
+  frameAccumulator+=dt;frameCounter++;
+  if(frameAccumulator>2){
+    const fps=Math.round(frameCounter/frameAccumulator);
+    fpsLabel.textContent=`PBR · ${fps} FPS`;
+    if(fps<38&&renderer.getPixelRatio()>1.05){const ratio=Math.max(1,renderer.getPixelRatio()-.15);renderer.setPixelRatio(ratio);resize();}
+    frameAccumulator=0;frameCounter=0;
+  }
+}
+renderer.setAnimationLoop(animate);
+
+loadAssets().catch(err=>{
+  console.error(err);
+  mode='error';
+  loadingTitle.textContent='The authored 3D asset could not load';
+  loadingDetail.textContent='This build intentionally does not fall back to cheap procedural pieces. Serve it over HTTP with internet access and retry.';
+  rendererStatus.textContent='ASSET LOAD FAILED';
+  sceneHint.textContent='NO PROCEDURAL ART FALLBACK';
+});
+
+if(new URLSearchParams(location.search).get('capture')==='1'){
+  const waiter=setInterval(()=>{if(mode==='play'){clearInterval(waiter);demoCapture();}},120);
+}
+
+</script>
+</body>
+</html>
